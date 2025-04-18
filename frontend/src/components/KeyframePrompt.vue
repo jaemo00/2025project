@@ -34,11 +34,27 @@
       };
     },
     methods: {
-      generateImage() {
+     async generateImage() {
         if (this.prompt.trim() !== '') {
-          // 이미지 생성 api 연동
-          const seed = Math.floor(Math.random() * 1000);
-          this.imageUrl = `https://picsum.photos/seed/${seed}/600/300`;
+          try {
+            const response = await fetch('/submit', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ text: this.prompt })
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+              this.imageUrl = `/static/${result.image_url}`;
+            } else {
+              console.error('서버에서 이미지 URL을 받지 못했어요.');
+            }
+          } catch (error) {
+          console.error('요청 중 오류 발생:', error);
+        }
         }
       },
     },
