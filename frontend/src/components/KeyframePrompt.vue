@@ -48,13 +48,15 @@
               headers: {
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ text: this.prompt })
+              body: JSON.stringify({ 
+                user_id: this.userId,
+                text: this.prompt })
             });
 
             const result = await response.json();
 
             if (result.status === 'success') {
-              this.imageUrl = `/static/${result.image_url}`;
+              this.imageUrl = `/static/${this.userId}/${result.image_url}`;
               localStorage.setItem('savedImageUrl', this.imageUrl); // 저장
             } else {
               console.error('서버에서 이미지 URL을 받지 못했어요.');
