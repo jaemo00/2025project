@@ -1,9 +1,9 @@
-#import pathlib
 import torch
-from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse,HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
 import uvicorn
 import os
 from diffusers import DiffusionPipeline
@@ -21,9 +21,13 @@ generator = torch.manual_seed(33)
 '''
 class SubmitRequest(BaseModel):
     text: str
+
 #pipe.load_lora_weights("C:/Users/AhnLab/Desktop/sd1.5.safetensors",weight_name="default", lora_scale=0.7) #0.5~1
 
-
+import mimetypes
+# .js 파일에 대해 MIME 타입 명시적으로 추가
+mimetypes.add_type('application/javascript', '.js')
+mimetypes.add_type('text/css', '.css')
 
 app = FastAPI()
 #BASE_DIR = pathlib.Path(__file__).parent
@@ -37,11 +41,12 @@ ASSETS_DIR = os.path.join(DIST_DIR, "assets")
 app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")
 app.mount(
     "/assets",
-    StaticFiles(directory=ASSETS_DIR, html=True),  
+    StaticFiles(directory=ASSETS_DIR),  
     name="assets"
 )
 # static 파일들 mount
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
 
 @app.get('/',response_class=HTMLResponse)
 async def serve_frontend():

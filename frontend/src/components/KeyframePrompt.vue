@@ -33,6 +33,12 @@
         imageUrl: '',
       };
     },
+    mounted() {
+      const savedImageUrl = localStorage.getItem('savedImageUrl');
+      if (savedImageUrl) {
+        this.imageUrl = savedImageUrl;
+     }
+    },
     methods: {
      async generateImage() {
         if (this.prompt.trim() !== '') {
@@ -49,6 +55,7 @@
 
             if (result.status === 'success') {
               this.imageUrl = `/static/${result.image_url}`;
+              localStorage.setItem('savedImageUrl', this.imageUrl); // 저장
             } else {
               console.error('서버에서 이미지 URL을 받지 못했어요.');
             }
