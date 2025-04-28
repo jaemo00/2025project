@@ -1,5 +1,5 @@
 import torch
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse,HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -8,6 +8,7 @@ import uvicorn
 import os
 from diffusers import DiffusionPipeline
 from diffusers import StableDiffusionPipeline
+import shutil
 
 '''
 pipe = StableDiffusionPipeline.from_single_file(
@@ -32,7 +33,7 @@ mimetypes.add_type('text/css', '.css')
 app = FastAPI()
 #BASE_DIR = pathlib.Path(__file__).parent
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STATIC_DIR = os.path.join(BASE_DIR, "static")
+TEMP_DIR = os.path.join(BASE_DIR, "temp")
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")  # frontend 폴더 위치
 DIST_DIR = os.path.join(FRONTEND_DIR, "dist") 
 ASSETS_DIR = os.path.join(DIST_DIR, "assets")
@@ -45,7 +46,7 @@ app.mount(
     name="assets"
 )
 # static 파일들 mount
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.mount("/temp", StaticFiles(directory=TEMP_DIR), name="temp")
 
 
 @app.get('/',response_class=HTMLResponse)
@@ -54,23 +55,47 @@ async def serve_frontend():
         html = f.read()
     return HTMLResponse(content=html)
 
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    # URL 쿼리 파라미터로 user_id 받아오기
+    user_id = websocket.query_params.get("user_id")
+
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # 필요하면 처리
+    except WebSocketDisconnect:
+        print(f"WebSocket disconnected for user: {user_id}")
+        # 사용자 temp폴더 삭제
+        user_temp_folder = os.path.join(TEMP_DIR, user_id)
+        if os.path.exists(user_temp_folder):
+            shutil.rmtree(user_temp_folder)
+
+
 
 @app.post("/submit")
 async def handle_post(data: SubmitRequest):
 
     """클라이언트에서 JSON 데이터를 받아 응답하는 핸들러"""
     try:
+        user_id = data.get("user_id")
         text = data.text
         #image = pipe(text, generator=generator, num_inference_steps=30).images[0]
 
         image_filename=text+'.png'
-        image_path = os.path.abspath(os.path.join(STATIC_DIR, image_filename))
+
+        #사용자 전용 폴더생성
+        user_folder = os.path.join(TEMP_DIR, user_id)
+        os.makedirs(user_folder, exist_ok=True)
+        
+        image_path_ = os.path.abspath(os.path.join(user_folder, user_id))
         #image.save(image_path)
         
         print(f"Received text: {image_filename}") 
 
         if not os.path.exists(image_path):
-            image_path = os.path.join(STATIC_DIR, "default.png")  # 기본 이미지 반환
+            image_path = os.path.join(TEMP_DIR, "default.png")  # 기본 이미지 반환
         print(f"path:{image_path}")
         return JSONResponse(content={"image_url": image_filename,"status":"success"})
         
