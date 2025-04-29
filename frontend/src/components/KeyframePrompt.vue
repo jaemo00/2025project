@@ -31,6 +31,7 @@
       return {
         prompt: '',
         imageUrl: '',
+        userId: localStorage.getItem('userId')|| '',
       };
     },
     mounted() {
@@ -56,7 +57,7 @@
             const result = await response.json();
 
             if (result.status === 'success') {
-              this.imageUrl = `/static/${this.userId}/${result.image_url}`;
+              this.imageUrl = `/temp/${this.userId}/${result.image_url}`;
               localStorage.setItem('savedImageUrl', this.imageUrl); // 저장
             } else {
               console.error('서버에서 이미지 URL을 받지 못했어요.');
