@@ -8,6 +8,7 @@
   <script>
   import ScenarioSection from '@/components/ScenarioSection.vue';
   import ArrowNextButton from '@/components/ArrowNextButton.vue';
+  import { v4 as uuidv4 } from 'uuid';
   
   export default {
     components: {
@@ -17,16 +18,20 @@
     data() {
       return {
         userId: null,
-       socket: null
+        socket: null
       };
     },
     mounted() {
-    // UUID 생성
-      this.userId = crypto.randomUUID();
-      console.log("생성된 사용자 ID:", this.userId);
+        // UUID 생성
+      let savedId = localStorage.getItem('userId');
+      if (!savedId) {
+        savedId = uuidv4();
+        localStorage.setItem('userId', savedId);
+      }
+      this.userId = savedId;
 
      // 웹소켓 연결하면서 id전달
-      this.socket = new WebSocket(`ws://localhost:8000/ws?user_id=${this.userId}`);
+      this.socket = new WebSocket(`ws://192.168.0.8:8000/ws?user_id=${this.userId}`);
 
      this.socket.onopen = (event) => {
       console.log("웹소켓 연결 성공");
