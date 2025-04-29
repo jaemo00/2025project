@@ -21,7 +21,9 @@ pipe = pipe.to("cuda")
 generator = torch.manual_seed(33)
 '''
 class SubmitRequest(BaseModel):
+    user_id: str
     text: str
+    
 
 #pipe.load_lora_weights("C:/Users/AhnLab/Desktop/sd1.5.safetensors",weight_name="default", lora_scale=0.7) #0.5~1
 
@@ -37,29 +39,14 @@ TEMP_DIR = os.path.join(BASE_DIR, "temp")
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")  # frontend 폴더 위치
 DIST_DIR = os.path.join(FRONTEND_DIR, "dist") 
 ASSETS_DIR = os.path.join(DIST_DIR, "assets")
-
-# frontend 폴더 mount
-app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")
-app.mount(
-    "/assets",
-    StaticFiles(directory=ASSETS_DIR),  
-    name="assets"
-)
-# static 파일들 mount
-app.mount("/temp", StaticFiles(directory=TEMP_DIR), name="temp")
-
-
-@app.get('/',response_class=HTMLResponse)
-async def serve_frontend():
-    with open(os.path.join(DIST_DIR, "index.html"), encoding="utf-8") as f:
-        html = f.read()
-    return HTMLResponse(content=html)
-
+ 
+#웹소켓 등록을 먼저해야함
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     # URL 쿼리 파라미터로 user_id 받아오기
     user_id = websocket.query_params.get("user_id")
+    print(f"{user_id}")
 
     try:
         while True:
@@ -72,6 +59,31 @@ async def websocket_endpoint(websocket: WebSocket):
         if os.path.exists(user_temp_folder):
             shutil.rmtree(user_temp_folder)
 
+@app.get('/',response_class=HTMLResponse)
+async def serve_frontend():
+    with open(os.path.join(DIST_DIR, "index.html"), encoding="utf-8") as f:
+        html = f.read()
+    return HTMLResponse(content=html)
+
+# frontend 폴더 mount
+app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")
+app.mount(
+    "/assets",
+    StaticFiles(directory=ASSETS_DIR),  
+    name="assets"
+)
+# static 파일들 mount
+app.mount("/temp", StaticFiles(directory=TEMP_DIR), name="temp")
+
+
+
+
+#fallback함수 : vue에서 처리할 경로의 요청은 index.html 보냄
+@app.get("/{full_path:path}", response_class=HTMLResponse)
+async def fallback(full_path: str):
+    if full_path.startswith("ws"):
+        return HTMLResponse(status_code=404, content="웹소켓은 FastAPI가 처리함")
+    return FileResponse(os.path.join(DIST_DIR, "index.html"))
 
 
 @app.post("/submit")
@@ -79,7 +91,7 @@ async def handle_post(data: SubmitRequest):
 
     """클라이언트에서 JSON 데이터를 받아 응답하는 핸들러"""
     try:
-        user_id = data.get("user_id")
+        user_id = data.user_id
         text = data.text
         #image = pipe(text, generator=generator, num_inference_steps=30).images[0]
 
@@ -107,4 +119,4 @@ async def handle_post(data: SubmitRequest):
 
 
 if __name__ == "__main__":
-    uvicorn.run("server:app", host="127.0.0.2", port=8000, reload=True)
+    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
