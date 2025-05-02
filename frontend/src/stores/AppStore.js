@@ -12,13 +12,10 @@ export const useAppStore = defineStore('app', {
 
     finalVideoUrl: '',
   }),
-<<<<<<< HEAD
   persist: {
     storage: sessionStorage,
   },
-=======
-  persist: true,
->>>>>>> be6f12f0023d55478d6b83545fdbff6ba267a386
+
 
   actions: {
     resetScenario() {

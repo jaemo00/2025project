@@ -57,14 +57,24 @@
 
   <!-- 비디오 -->
   <div v-if="block.videoUrl" class="relative">
-    <video :src="block.videoUrl" controls class="w-60 h-36 object-cover rounded shadow"></video>
-    <button
-      @click="$emit('regenerateVideo')"
-      class="absolute top-2 right-2 text-sm bg-white px-2 py-1 rounded shadow"
-    >
-      다시 생성
-    </button>
-  </div>
+  <img
+    v-if="block.videoUrl.endsWith('.gif')"
+    :src="block.videoUrl"
+    class="w-60 h-36 object-cover rounded shadow"
+  />
+  <video
+    v-else
+    :src="block.videoUrl"
+    controls
+    class="w-60 h-36 object-cover rounded shadow"
+  />
+  <button
+    @click="$emit('regenerateVideo')"
+    class="absolute top-2 right-2 text-sm bg-white px-2 py-1 rounded shadow"
+  >
+    다시 생성
+  </button>
+</div>
 </div>
 </div>
   </template>
