@@ -6,11 +6,7 @@
         v-if="store.generatedScenario"
         class="mb-6 p-4 bg-gray-100 border border-gray-300 rounded-lg text-sm text-gray-700 whitespace-pre-line"
       >
-<<<<<<< HEAD
         <strong class="block text-gray-900 mb-1">생성된 시나리오:</strong>
-=======
-        <strong class="block text-gray-900 mb-1">📘 생성된 시나리오:</strong>
->>>>>>> be6f12f0023d55478d6b83545fdbff6ba267a386
         {{ store.generatedScenario }}
       </div>
   
@@ -28,7 +24,7 @@
           @regenerateVideo="regenerateVideo(index)"
         />
       </div>
-<<<<<<< HEAD
+
 
       <div class="mt-8 flex justify-center">
       <button
@@ -38,8 +34,7 @@
         최종 결과물 제작
       </button>
     </div>
-=======
->>>>>>> be6f12f0023d55478d6b83545fdbff6ba267a386
+
   
       <ArrowNextButton direction="next" to="/final" class="fixed bottom-6 right-6" />
       <ArrowNextButton direction="prev" to="/create" class="fixed bottom-6 left-6" />
@@ -50,11 +45,8 @@
   import { useAppStore } from '@/stores/appStore'
   import KeyframePage from '@/components/KeyframePage.vue'
   import ArrowNextButton from '@/components/ArrowNextButton.vue'
-<<<<<<< HEAD
   import { useRouter } from 'vue-router'
 import axios from 'axios' 
-=======
->>>>>>> be6f12f0023d55478d6b83545fdbff6ba267a386
   
   export default {
     name: 'KeyframeView',
@@ -66,6 +58,8 @@ import axios from 'axios'
       const store = useAppStore()
 
       const router = useRouter()
+      const userId = localStorage.getItem('userId') || ''
+
   
       async function generateImage(index) {
   const block = store.keyframeBlocks[index]
@@ -73,9 +67,16 @@ import axios from 'axios'
 
   try {
     const res = await axios.post('http://192.168.0.3:8000/api/generate-image', {
+      user_id: userId,
       prompt: block.text,
-    })
-    block.imageUrl = res.data.imageUrl
+    },
+    {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  }
+  )
+    block.imageUrl = `/temp/${userId}/${res.data.imageUrl}`;
   } catch (err) {
     console.error('이미지 생성 실패:', err)
     alert('이미지 생성 중 오류가 발생했습니다.')
@@ -88,10 +89,11 @@ async function generateVideo(index) {
 
   try {
     const res = await axios.post('http://192.168.0.3:8000/api/generate-video', {
+      user_id: userId,
       imagePrompt: block.text,
       videoPrompt: block.videoPrompt,
     })
-    block.videoUrl = res.data.videoUrl
+    block.videoUrl =  `/temp/${userId}/${res.data.videoUrl}`;
   } catch (err) {
     console.error('비디오 생성 실패:', err)
     alert('비디오 생성 중 오류가 발생했습니다.')
