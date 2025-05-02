@@ -107,7 +107,7 @@ async def generate_image(data: ImageRequest):
     try:
         user_id = data.user_id
         text = data.prompt
-        image = pipe(text, generator=generator, num_inference_steps=30).images[0]
+        #image = pipe(text, generator=generator, num_inference_steps=30).images[0]
 
         image_filename=text+'.png'
 
@@ -116,7 +116,7 @@ async def generate_image(data: ImageRequest):
         os.makedirs(user_folder, exist_ok=True)
         
         image_path = os.path.abspath(os.path.join(user_folder, image_filename))
-        image.save(image_path)
+        #image.save(image_path)
         
         print(f"Received text: {image_filename}") 
 
