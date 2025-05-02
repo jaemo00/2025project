@@ -25,7 +25,6 @@
         />
       </div>
 
-
       <div class="mt-8 flex justify-center">
       <button
         @click="generateFinalVideo"
@@ -34,7 +33,6 @@
         최종 결과물 제작
       </button>
     </div>
-
   
       <ArrowNextButton direction="next" to="/final" class="fixed bottom-6 right-6" />
       <ArrowNextButton direction="prev" to="/create" class="fixed bottom-6 left-6" />
@@ -46,7 +44,7 @@
   import KeyframePage from '@/components/KeyframePage.vue'
   import ArrowNextButton from '@/components/ArrowNextButton.vue'
   import { useRouter } from 'vue-router'
-import axios from 'axios' 
+  import axios from 'axios'
   
   export default {
     name: 'KeyframeView',
@@ -56,53 +54,51 @@ import axios from 'axios'
     },
     setup() {
       const store = useAppStore()
-
       const router = useRouter()
       const userId = localStorage.getItem('userId') || ''
-
   
       async function generateImage(index) {
-  const block = store.keyframeBlocks[index]
-  if (!block.text?.trim()) return
-
-  try {
-    const res = await axios.post('http://192.168.0.3:8000/api/generate-image', {
-      user_id: userId,
-      prompt: block.text,
-    },
-    {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  }
-  )
-    block.imageUrl = `/temp/${userId}/${res.data.imageUrl}`;
-  } catch (err) {
-    console.error('이미지 생성 실패:', err)
-    alert('이미지 생성 중 오류가 발생했습니다.')
-  }
-}
+        const block = store.keyframeBlocks[index]
+        if (!block.text?.trim()) return
   
-async function generateVideo(index) {
-  const block = store.keyframeBlocks[index]
-  if (!block.text?.trim() || !block.videoPrompt?.trim()) return
-
-  try {
-    const res = await axios.post('http://192.168.0.3:8000/api/generate-video', {
-      user_id: userId,
-      imagePrompt: block.text,
-      videoPrompt: block.videoPrompt,
-    })
-    block.videoUrl =  `/temp/${userId}/${res.data.videoUrl}`;
-  } catch (err) {
-    console.error('비디오 생성 실패:', err)
-    alert('비디오 생성 중 오류가 발생했습니다.')
-  }
-}
+        try {
+          const res = await axios.post(
+            'http://192.168.0.3:8000/api/generate-image',
+            {
+              user_id: userId,
+              prompt: block.text,
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            }
+          )
+          block.imageUrl = `/temp/${userId}/${res.data.imageUrl}`
+        } catch (err) {
+          console.error('이미지 생성 실패:', err)
+          alert('이미지 생성 중 오류가 발생했습니다.')
+        }
+      }
+  
+      async function generateVideo(index) {
+        const block = store.keyframeBlocks[index]
+        if (!block.text?.trim() || !block.videoPrompt?.trim()) return
+  
+        try {
+          const res = await axios.post('http://192.168.0.3:8000/api/generate-video', {
+            user_id: userId,
+            imagePrompt: block.text,
+            videoPrompt: block.videoPrompt,
+          })
+          block.videoUrl = `/temp/${userId}/${res.data.videoUrl}`
+        } catch (err) {
+          console.error('비디오 생성 실패:', err)
+          alert('비디오 생성 중 오류가 발생했습니다.')
+        }
+      }
   
       function regenerateImage(index) {
-
-
         generateImage(index)
       }
   
@@ -118,22 +114,19 @@ async function generateVideo(index) {
           videoPrompt: '',
         })
       }
-
-
+  
       function generateFinalVideo() {
-      const videoUrls = store.keyframeBlocks.map(b => b.videoUrl).filter(Boolean)
-
-      if (!videoUrls.length) {
-        alert('비디오가 하나 이상 필요합니다.')
-        return
+        const videoUrls = store.keyframeBlocks.map(b => b.videoUrl).filter(Boolean)
+  
+        if (!videoUrls.length) {
+          alert('비디오가 하나 이상 필요합니다.')
+          return
+        }
+  
+        store.finalVideoUrl =
+          'https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4'
+        router.push('/final')
       }
-
-      // 👉 실제 API 연결 시 videoUrls 보내서 서버에서 병합
-      store.finalVideoUrl = 'https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4'
-
-      router.push('/final')
-    }
-
   
       return {
         store,
@@ -143,7 +136,6 @@ async function generateVideo(index) {
         regenerateVideo,
         addPrompt,
         generateFinalVideo,
-
       }
     },
   }
