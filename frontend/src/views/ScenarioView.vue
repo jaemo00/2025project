@@ -41,6 +41,7 @@
   
   const store = useAppStore()
   
+
   function generateScenario() { 
     if (store.scenarioPrompt.trim()) {
       store.generatedScenario = `Lorem ipsum dolor sit amet, consectetur adipiscing elit.
