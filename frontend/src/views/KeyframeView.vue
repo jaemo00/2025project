@@ -6,11 +6,9 @@
         v-if="store.generatedScenario"
         class="mb-6 p-4 bg-gray-100 border border-gray-300 rounded-lg text-sm text-gray-700 whitespace-pre-line"
       >
-<<<<<<< HEAD
+
         <strong class="block text-gray-900 mb-1">생성된 시나리오:</strong>
-=======
-        <strong class="block text-gray-900 mb-1">📘 생성된 시나리오:</strong>
->>>>>>> be6f12f0023d55478d6b83545fdbff6ba267a386
+
         {{ store.generatedScenario }}
       </div>
   
@@ -28,7 +26,6 @@
           @regenerateVideo="regenerateVideo(index)"
         />
       </div>
-<<<<<<< HEAD
 
       <div class="mt-8 flex justify-center">
       <button
@@ -38,42 +35,32 @@
         최종 결과물 제작
       </button>
     </div>
-=======
->>>>>>> be6f12f0023d55478d6b83545fdbff6ba267a386
   
       <ArrowNextButton direction="next" to="/final" class="fixed bottom-6 right-6" />
       <ArrowNextButton direction="prev" to="/create" class="fixed bottom-6 left-6" />
     </div>
   </template>
   
-  <script>
-  import { useAppStore } from '@/stores/appStore'
-  import KeyframePage from '@/components/KeyframePage.vue'
-  import ArrowNextButton from '@/components/ArrowNextButton.vue'
-<<<<<<< HEAD
-  import { useRouter } from 'vue-router'
-import axios from 'axios' 
-=======
->>>>>>> be6f12f0023d55478d6b83545fdbff6ba267a386
-  
-  export default {
-    name: 'KeyframeView',
-    components: {
-      KeyframePage,
-      ArrowNextButton,
-    },
-    setup() {
-      const store = useAppStore()
+  <script setup>
+import { useAppStore } from '@/stores/appStore'
+import KeyframePage from '@/components/KeyframePage.vue'
+import ArrowNextButton from '@/components/ArrowNextButton.vue'
+import { useRouter } from 'vue-router'
+import axios from 'axios'
 
-      const router = useRouter()
-  
-      async function generateImage(index) {
+// Pinia store 및 router 사용
+const store = useAppStore()
+const router = useRouter()
+
+// 이미지 생성
+async function generateImage(index) {
   const block = store.keyframeBlocks[index]
   if (!block.text?.trim()) return
 
   try {
     const res = await axios.post('http://192.168.0.3:8000/api/generate-image', {
       prompt: block.text,
+      userid:userId,
     })
     block.imageUrl = res.data.imageUrl
   } catch (err) {
@@ -81,15 +68,17 @@ import axios from 'axios'
     alert('이미지 생성 중 오류가 발생했습니다.')
   }
 }
-  
+
+// 비디오 생성
 async function generateVideo(index) {
   const block = store.keyframeBlocks[index]
   if (!block.text?.trim() || !block.videoPrompt?.trim()) return
 
   try {
     const res = await axios.post('http://192.168.0.3:8000/api/generate-video', {
-      imagePrompt: block.text,
+      imageUrl: block.imageUrl,
       videoPrompt: block.videoPrompt,
+      userid:userId,
     })
     block.videoUrl = res.data.videoUrl
   } catch (err) {
@@ -97,52 +86,33 @@ async function generateVideo(index) {
     alert('비디오 생성 중 오류가 발생했습니다.')
   }
 }
-  
-      function regenerateImage(index) {
+
+function regenerateImage(index) {
+  generateImage(index)
+}
+function regenerateVideo(index) {
+  generateVideo(index)
+}
+
+function addPrompt() {
+  store.keyframeBlocks.push({
+    text: '',
+    imageUrl: '',
+    videoUrl: '',
+    videoPrompt: '',
+  })
+}
 
 
-        generateImage(index)
-      }
-  
-      function regenerateVideo(index) {
-        generateVideo(index)
-      }
-  
-      function addPrompt() {
-        store.keyframeBlocks.push({
-          text: '',
-          imageUrl: '',
-          videoUrl: '',
-          videoPrompt: '',
-        })
-      }
+function generateFinalVideo() {
+  const videoUrls = store.keyframeBlocks.map(b => b.videoUrl).filter(Boolean)
 
-
-      function generateFinalVideo() {
-      const videoUrls = store.keyframeBlocks.map(b => b.videoUrl).filter(Boolean)
-
-      if (!videoUrls.length) {
-        alert('비디오가 하나 이상 필요합니다.')
-        return
-      }
-
-      // 👉 실제 API 연결 시 videoUrls 보내서 서버에서 병합
-      store.finalVideoUrl = 'https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4'
-
-      router.push('/final')
-    }
-
-  
-      return {
-        store,
-        generateImage,
-        generateVideo,
-        regenerateImage,
-        regenerateVideo,
-        addPrompt,
-        generateFinalVideo,
-
-      }
-    },
+  if (!videoUrls.length) {
+    alert('비디오가 하나 이상 필요합니다.')
+    return
   }
-  </script>
+
+  store.finalVideoUrl = 'https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4'
+  router.push('/final')
+}
+</script>
