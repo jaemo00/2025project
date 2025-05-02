@@ -6,7 +6,11 @@
         v-if="store.generatedScenario"
         class="mb-6 p-4 bg-gray-100 border border-gray-300 rounded-lg text-sm text-gray-700 whitespace-pre-line"
       >
+<<<<<<< HEAD
         <strong class="block text-gray-900 mb-1">생성된 시나리오:</strong>
+=======
+        <strong class="block text-gray-900 mb-1">📘 생성된 시나리오:</strong>
+>>>>>>> be6f12f0023d55478d6b83545fdbff6ba267a386
         {{ store.generatedScenario }}
       </div>
   
@@ -24,6 +28,7 @@
           @regenerateVideo="regenerateVideo(index)"
         />
       </div>
+<<<<<<< HEAD
 
       <div class="mt-8 flex justify-center">
       <button
@@ -33,6 +38,8 @@
         최종 결과물 제작
       </button>
     </div>
+=======
+>>>>>>> be6f12f0023d55478d6b83545fdbff6ba267a386
   
       <ArrowNextButton direction="next" to="/final" class="fixed bottom-6 right-6" />
       <ArrowNextButton direction="prev" to="/create" class="fixed bottom-6 left-6" />
@@ -43,8 +50,11 @@
   import { useAppStore } from '@/stores/appStore'
   import KeyframePage from '@/components/KeyframePage.vue'
   import ArrowNextButton from '@/components/ArrowNextButton.vue'
+<<<<<<< HEAD
   import { useRouter } from 'vue-router'
 import axios from 'axios' 
+=======
+>>>>>>> be6f12f0023d55478d6b83545fdbff6ba267a386
   
   export default {
     name: 'KeyframeView',
@@ -54,6 +64,7 @@ import axios from 'axios'
     },
     setup() {
       const store = useAppStore()
+
       const router = useRouter()
   
       async function generateImage(index) {
@@ -89,6 +100,7 @@ async function generateVideo(index) {
   
       function regenerateImage(index) {
 
+
         generateImage(index)
       }
   
@@ -105,6 +117,7 @@ async function generateVideo(index) {
         })
       }
 
+
       function generateFinalVideo() {
       const videoUrls = store.keyframeBlocks.map(b => b.videoUrl).filter(Boolean)
 
@@ -118,6 +131,7 @@ async function generateVideo(index) {
 
       router.push('/final')
     }
+
   
       return {
         store,
@@ -127,6 +141,7 @@ async function generateVideo(index) {
         regenerateVideo,
         addPrompt,
         generateFinalVideo,
+
       }
     },
   }
