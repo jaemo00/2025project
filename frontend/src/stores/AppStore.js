@@ -7,7 +7,7 @@ export const useAppStore = defineStore('app', {
     generatedScenario: '',
 
     keyframeBlocks: [
-      { text: '', imageUrl: '', videoUrl: '', videoPrompt: '' },
+      { text: '', imageUrl: '', videoUrl: '', videoPrompt: '', setup: { width: 640, height: 360  },},
     ],
 
     finalVideoUrl: '',

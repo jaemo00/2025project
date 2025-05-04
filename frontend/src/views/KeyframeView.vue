@@ -60,6 +60,7 @@ async function generateImage(index) {
   try {
     const res = await axios.post('http://192.168.0.3:8000/api/generate-image', {
       prompt: block.text,
+      setup: block.setup,
       userid:userId,
     })
     block.imageUrl = res.data.imageUrl
@@ -104,7 +105,7 @@ function addPrompt() {
 }
 
 
-function generateFinalVideo() {
+async function generateFinalVideo() {
   const videoUrls = store.keyframeBlocks.map(b => b.videoUrl).filter(Boolean)
 
   if (!videoUrls.length) {
@@ -112,7 +113,17 @@ function generateFinalVideo() {
     return
   }
 
-  store.finalVideoUrl = 'https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4'
-  router.push('/final')
+  try {
+    const res = await axios.post('http://192.168.0.3:8000/api/generate-video', {
+  imageUrl: block.imageUrl,
+  videoPrompt: block.videoPrompt, 
+  userid: userId,
+})
+
+    store.finalVideoUrl = res.data.finalVideoUrl
+    router.push('/final')
+  } catch (err) {
+    console.error('최종 비디오 생성 실패:', err)
+    alert('최종 비디오 생성 중 오류가 발생했습니다.')
+  }
 }
-</script>
