@@ -38,22 +38,41 @@
     </button>
   </div>
 
-  <!-- 비디오 프롬프트 + 버튼 -->
-  <div class="flex flex-col gap-2 w-60">
-    <textarea
-      v-model="block.videoPrompt"
-      placeholder="키프레임 설명 (비디오용 프롬프트)"
-      class="w-full h-36 bg-white border border-gray-300 rounded-lg p-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-400"
-    ></textarea>
+<!-- 비디오 프롬프트 + 버튼 + 해상도 입력 -->
+<div class="flex flex-col gap-2 w-60">
+  <textarea
+    v-model="block.videoPrompt"
+    placeholder="키프레임 설명 (비디오용 프롬프트)"
+    class="w-full h-24 bg-white border border-gray-300 rounded-lg p-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-400"
+  ></textarea>
 
-    <button
-      v-if="!block.videoUrl"
-      @click="$emit('updateVideo')"
-      class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-    >
-      비디오 생성
-    </button>
+  <!-- 해상도 입력 -->
+  <div class="flex items-center gap-2">
+    <input
+      type="number"
+      v-model.number="block.setup.width"
+      placeholder="가로"
+      class="w-20 border rounded px-2 py-1 text-sm"
+      min="1"
+    />
+    <span class="text-gray-500">×</span>
+    <input
+      type="number"
+      v-model.number="block.setup.height"
+      placeholder="세로"
+      class="w-20 border rounded px-2 py-1 text-sm"
+      min="1"
+    />
   </div>
+
+  <button
+    v-if="!block.videoUrl"
+    @click="$emit('updateVideo')"
+    class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+  >
+    비디오 생성
+  </button>
+</div>
 
   <!-- 비디오 -->
   <div v-if="block.videoUrl" class="relative">
