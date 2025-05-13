@@ -8,21 +8,35 @@ import uvicorn
 import os
 from diffusers import DiffusionPipeline
 from diffusers import StableDiffusionPipeline
+from diffusers import I2VGenXLPipeline
+from diffusers.utils import export_to_gif, load_image
 import shutil
 
-'''
+#이미지 모델
 pipe = StableDiffusionPipeline.from_single_file(
     "C:/Users/AhnLab/Desktop/DreamShaper_8.safetensors",  # DreamShaper 파일 경로
     torch_dtype=torch.float16,
     safety_checker=None,  # 필요 시 꺼줄 수 있음
 )
 pipe = pipe.to("cuda")
+print(torch.cuda.is_available())
 
 generator = torch.manual_seed(33)
-'''
-class SubmitRequest(BaseModel):
+
+#영상 모델
+pipeline = I2VGenXLPipeline.from_pretrained("ali-vilab/i2vgen-xl", torch_dtype=torch.float16, variant="fp16")
+pipeline.enable_model_cpu_offload()
+
+
+#데이터 파싱
+class ImageRequest(BaseModel):
     user_id: str
-    text: str
+    prompt: str
+
+class VideoRequest(BaseModel):
+    user_id: str
+    imagePrompt: str
+    videoPrompt: str
     
 
 #pipe.load_lora_weights("C:/Users/AhnLab/Desktop/sd1.5.safetensors",weight_name="default", lora_scale=0.7) #0.5~1
@@ -86,13 +100,13 @@ async def fallback(full_path: str):
     return FileResponse(os.path.join(DIST_DIR, "index.html"))
 
 
-@app.post("/submit")
-async def handle_post(data: SubmitRequest):
+@app.post("/api/generate-image")
+async def generate_image(data: ImageRequest):
 
     """클라이언트에서 JSON 데이터를 받아 응답하는 핸들러"""
     try:
         user_id = data.user_id
-        text = data.text
+        text = data.prompt
         #image = pipe(text, generator=generator, num_inference_steps=30).images[0]
 
         image_filename=text+'.png'
@@ -101,7 +115,7 @@ async def handle_post(data: SubmitRequest):
         user_folder = os.path.join(TEMP_DIR, user_id)
         os.makedirs(user_folder, exist_ok=True)
         
-        image_path_ = os.path.abspath(os.path.join(user_folder, user_id))
+        image_path = os.path.abspath(os.path.join(user_folder, image_filename))
         #image.save(image_path)
         
         print(f"Received text: {image_filename}") 
@@ -109,14 +123,43 @@ async def handle_post(data: SubmitRequest):
         if not os.path.exists(image_path):
             image_path = os.path.join(TEMP_DIR, "default.png")  # 기본 이미지 반환
         print(f"path:{image_path}")
-        return JSONResponse(content={"image_url": image_filename,"status":"success"})
+        return JSONResponse(content={"imageUrl": image_filename,"status":"success"})
         
 
     except Exception as e:
-        return JSONResponse(content={"image_url": image_filename,"status":"success"})
+        return JSONResponse(content={"imageUrl": image_filename,"status":"success"})
     
 
 
+@app.post("/api/generate-video")
+async def generate_video(data: VideoRequest):
+
+    """클라이언트에서 JSON 데이터를 받아 응답하는 핸들러"""
+    try:
+        user_id = data.user_id
+        image_filename=data.imagePrompt+'.png'
+        user_folder = os.path.join(TEMP_DIR, user_id)
+        image_path = os.path.abspath(os.path.join(user_folder, image_filename))
+        #image = load_image(image_path).convert("RGB")
+            
+        print(f"Received imagefile: {image_filename}") 
+        '''
+        frames = pipeline(
+            prompt=data.videoPrompt,
+            image=image,
+            num_inference_steps=40,
+            negative_prompt="",
+            guidance_scale=1,
+            generator=generator
+        ).frames[0]
+        '''
+        video_filename=data.imagePrompt+'.gif'
+        '''
+        video_path = os.path.abspath(os.path.join(user_folder, video_filename))
+        export_to_gif(frames, video_path)'''
+        return JSONResponse(content={"videoUrl": video_filename,"status":"success"})
+    except Exception as e:
+        return JSONResponse(content={"videoUrl": video_filename,"status":"success"})
 
 if __name__ == "__main__":
     uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
