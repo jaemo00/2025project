@@ -101,6 +101,8 @@ function addPrompt() {
     imageUrl: '',
     videoUrl: '',
     videoPrompt: '',
+    width: 640,
+    height: 360,
   })
 }
 
@@ -127,3 +129,4 @@ async function generateFinalVideo() {
     alert('최종 비디오 생성 중 오류가 발생했습니다.')
   }
 }
+</script>
