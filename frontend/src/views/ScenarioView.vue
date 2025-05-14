@@ -44,7 +44,7 @@
 
   const store = useAppStore()
   
-  async function generateScenario() { 
+  function generateScenario() { 
     if (store.scenarioPrompt.trim()) {
       try {
           const res = await axios.post('http://192.168.0.8:8000/api/generate-scenario', {
@@ -98,4 +98,3 @@ onMounted(() => {
   }
 })
   </script>
-  
