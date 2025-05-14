@@ -40,13 +40,22 @@
   import ArrowNextButton from '@/components/ArrowNextButton.vue'
   import { v4 as uuidv4 } from 'uuid';
   import { ref, onMounted } from 'vue'
+  import axios from 'axios'
 
   const store = useAppStore()
   
-  function generateScenario() { 
+  async function generateScenario() { 
     if (store.scenarioPrompt.trim()) {
-      store.generatedScenario = `Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-  "${store.scenarioPrompt}" 기반으로 시나리오가 이렇게 나올 수 있습니다.`
+      try {
+          const res = await axios.post('http://192.168.0.8:8000/api/generate-scenario', {
+            user_id: userId.value,
+            scenarioPrompt: store.scenarioPrompt,
+          })
+          store.generatedScenario = res.data.scenario
+        } catch (err) {
+          console.error('시나리오 생성 실패:', err)
+          alert('시나리오 생성 중 오류가 발생했습니다.')
+        }  
     }
   }
 
