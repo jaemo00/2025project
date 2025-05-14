@@ -11,8 +11,17 @@ from diffusers import StableDiffusionPipeline
 from diffusers import I2VGenXLPipeline
 from diffusers.utils import export_to_gif, load_image
 import shutil
+from langchain import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_openai import ChatOpenAI
+from dotenv import load_dotenv
+
+
+# API KEY 정보로드
+load_dotenv()
 
 #이미지 모델
+'''
 pipe = StableDiffusionPipeline.from_single_file(
     "C:/Users/AhnLab/Desktop/DreamShaper_8.safetensors",  # DreamShaper 파일 경로
     torch_dtype=torch.float16,
@@ -26,7 +35,7 @@ generator = torch.manual_seed(33)
 #영상 모델
 pipeline = I2VGenXLPipeline.from_pretrained("ali-vilab/i2vgen-xl", torch_dtype=torch.float16, variant="fp16")
 pipeline.enable_model_cpu_offload()
-
+'''
 
 #데이터 파싱
 class ImageRequest(BaseModel):
@@ -38,6 +47,9 @@ class VideoRequest(BaseModel):
     imagePrompt: str
     videoPrompt: str
     
+class scenarioRequest(BaseModel):
+    user_id: str
+    scenarioPrompt: str   
 
 #pipe.load_lora_weights("C:/Users/AhnLab/Desktop/sd1.5.safetensors",weight_name="default", lora_scale=0.7) #0.5~1
 
@@ -160,6 +172,30 @@ async def generate_video(data: VideoRequest):
         return JSONResponse(content={"videoUrl": video_filename,"status":"success"})
     except Exception as e:
         return JSONResponse(content={"videoUrl": video_filename,"status":"success"})
+
+
+def init_model():
+    MODEL_NAME = 'gpt-3.5-turbo'
+    return ChatOpenAI(model=MODEL_NAME, temperature=0.5)
+
+@app.post("/api/generate-scenario")
+async def generate_scenario(data: scenarioRequest):
+    llm = init_model()
+    template = '''
+    You are a scenario writer.
+    You must write a simple 30-second scenario based on the user's input topic.
+    Please answer in Korean and format it as a paragraph.
+
+    Paragraph: {paragraph}
+    '''
+    prompt = PromptTemplate.from_template(template=template)
+
+    summarize_chain = prompt | llm | StrOutputParser()
+    result=summarize_chain.invoke(dict(paragraph=data.scenarioPrompt))
+    print(result)
+    print(f"\n{data.user_id}")
+    return JSONResponse(content={"scenario":result ,"status":"success"})
+
 
 if __name__ == "__main__":
     uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
