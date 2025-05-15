@@ -44,11 +44,11 @@
 
   const store = useAppStore()
   
-  function generateScenario() { 
+  async function generateScenario() { 
     if (store.scenarioPrompt.trim()) {
       try {
-          const res = await axios.post('http://192.168.0.8:8000/api/generate-scenario', {
-            user_id: userId.value,
+          const res = await axios.post('/api/generate-scenario', {
+            userid: userId.value,
             scenarioPrompt: store.scenarioPrompt,
           })
           store.generatedScenario = res.data.scenario
@@ -59,24 +59,23 @@
     }
   }
 
-  const userId = ref('')
+const userId = ref('')
 const socket = ref(null)
 const socketStatus = ref('')
 
 onMounted(() => {
   // UUID 생성 및 저장
-  
-  const userId = ref('')
   let savedId = localStorage.getItem('userId')
   if (!savedId) {
     savedId = uuidv4()
     console.log("생성된 사용자 ID:", savedId)
     localStorage.setItem('userId', savedId)
   }
-  //userId.value = savedId
+  console.log("사용자 ID:", savedId)
+  userId.value = savedId
 
   // 웹소켓 연결
-  socket.value = new WebSocket(`ws://192.168.0.3:8000/ws?user_id=${savedId}`)
+  socket.value = new WebSocket(`ws://192.168.0.8:8000/ws?user_id=${savedId}`)
 
   socket.value.onopen = () => {
     console.log("웹소켓 연결 성공")
