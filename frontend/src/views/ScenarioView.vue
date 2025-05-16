@@ -80,17 +80,14 @@ onMounted(() => {
     console.log("웹소켓 연결 성공")
     socketStatus.value = '✅ 웹소켓 연결됨'
   }
-
   socket.value.onclose = () => {
     console.log("웹소켓 연결 종료")
     socketStatus.value = '❌ 연결 종료됨'
   }
-
   socket.value.onerror = (error) => {
     console.error("웹소켓 에러 발생:", error)
     socketStatus.value = '⚠️ 연결 중 에러'
   }
-
   socket.value.onmessage = (event) => {
     console.log("서버로부터 받은 메시지:", event.data)
   }

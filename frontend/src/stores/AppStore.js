@@ -41,43 +41,5 @@ export const useAppStore = defineStore('app', {
         { text: '', imageUrl: '', videoUrl: '', videoPrompt: '' },
       ]
     },
-
-    // ✅ WebSocket 연결 초기화
-    initWebSocket() {
-      let savedId = localStorage.getItem('userId')
-      if (!savedId) {
-        savedId = uuidv4()
-        localStorage.setItem('userId', savedId)
-      }
-      this.userId = savedId
-
-      this.socket = new WebSocket(`ws://192.168.0.3:8000/ws?user_id=${savedId}`)
-
-      this.socket.onopen = () => {
-        console.log('✅ 웹소켓 연결됨')
-        this.socketStatus = '✅ 연결됨'
-      }
-
-      this.socket.onclose = () => {
-        console.log('❌ 웹소켓 종료됨')
-        this.socketStatus = '❌ 연결 종료됨'
-      }
-
-      this.socket.onerror = (e) => {
-        console.error('⚠️ 웹소켓 에러 발생:', e)
-        this.socketStatus = '⚠️ 에러 발생'
-      }
-
-      this.socket.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data)
-          if (msg.type === 'image_progress') {
-            this.progressMap[msg.blockIndex] = msg.progress
-          }
-        } catch (e) {
-          console.warn('메시지 파싱 실패:', event.data)
-        }
-      }
-    },
   },
 })

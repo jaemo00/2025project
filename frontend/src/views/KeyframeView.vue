@@ -63,7 +63,7 @@ async function generateImage(index) {
     width: block.setup.width,
     height: block.setup.height
   },
-      userid:userId,
+      userid: localStorage.getItem('userId'),
       model: block.modelName,
     })
     block.imageUrl = res.data.imageUrl
