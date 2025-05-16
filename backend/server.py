@@ -67,7 +67,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     # URL 쿼리 파라미터로 user_id 받아오기
     user_id = websocket.query_params.get("user_id")
-    user_folder = os.path.join(TEMP_DIR, data.user_id)
+    user_folder = os.path.join(TEMP_DIR, user_id)
     os.makedirs(user_folder, exist_ok=True)
     print(f"{user_id}")
 
