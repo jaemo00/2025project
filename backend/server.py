@@ -11,7 +11,7 @@ from diffusers import StableDiffusionPipeline
 from diffusers import I2VGenXLPipeline
 from diffusers.utils import export_to_gif, load_image
 import shutil
-
+'''
 #이미지 모델
 pipe = StableDiffusionPipeline.from_single_file(
     "C:/Users/AhnLab/Desktop/DreamShaper_8.safetensors",  # DreamShaper 파일 경로
@@ -26,7 +26,7 @@ generator = torch.manual_seed(33)
 #영상 모델
 pipeline = I2VGenXLPipeline.from_pretrained("ali-vilab/i2vgen-xl", torch_dtype=torch.float16, variant="fp16")
 pipeline.enable_model_cpu_offload()
-
+'''
 
 #데이터 파싱
 class ImageRequest(BaseModel):
