@@ -43,23 +43,21 @@
   import axios from 'axios'
 
   const store = useAppStore()
-  
-  async function generateScenario() { 
-    if (store.scenarioPrompt.trim()) {
-      try {
-          const res = await axios.post('/api/generate-scenario', {
-            userid: userId.value,
-            scenarioPrompt: store.scenarioPrompt,
-          })
-          store.generatedScenario = res.data.scenario
-        } catch (err) {
-          console.error('시나리오 생성 실패:', err)
-          alert('시나리오 생성 중 오류가 발생했습니다.')
-        }  
-    }
-  }
 
-const userId = ref('')
+  async function generateScenario() {
+  if (!store.scenarioPrompt.trim()) return
+
+  try {
+    const res = await axios.post('/api/generate-scenario', {
+      prompt: store.scenarioPrompt
+    })
+
+    store.generatedScenario = res.data.scenario
+  } catch (err) {
+    console.error('시나리오 생성 실패:', err)
+    alert('시나리오 생성 중 오류가 발생했습니다.')
+  }
+}
 const socket = ref(null)
 const socketStatus = ref('')
 
@@ -72,7 +70,6 @@ onMounted(() => {
     localStorage.setItem('userId', savedId)
   }
   console.log("사용자 ID:", savedId)
-  userId.value = savedId
 
   // 웹소켓 연결
   socket.value = new WebSocket(`ws://192.168.0.8:8000/ws?user_id=${savedId}`)
