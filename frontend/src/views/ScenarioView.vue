@@ -71,8 +71,10 @@ onMounted(() => {
   }
   console.log("사용자 ID:", savedId)
 
-  // 웹소켓 연결
-  socket.value = new WebSocket(`ws://192.168.0.8:8000/ws?user_id=${savedId}`)
+// 웹소켓 연결
+  const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
+  const socketUrl = `${protocol}://${location.host}/ws?user_id=${savedId}`
+  socket.value = new WebSocket(socketUrl)
 
   socket.value.onopen = () => {
     console.log("웹소켓 연결 성공")
