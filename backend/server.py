@@ -20,36 +20,31 @@ from dotenv import load_dotenv
 # API KEY 정보로드
 load_dotenv()
 
-#이미지 모델
+
 '''
-pipe = StableDiffusionPipeline.from_single_file(
-    "C:/Users/AhnLab/Desktop/DreamShaper_8.safetensors",  # DreamShaper 파일 경로
-    torch_dtype=torch.float16,
-    safety_checker=None,  # 필요 시 꺼줄 수 있음
-)
-pipe = pipe.to("cuda")
-print(torch.cuda.is_available())
-
-generator = torch.manual_seed(33)
-
 #영상 모델
 pipeline = I2VGenXLPipeline.from_pretrained("ali-vilab/i2vgen-xl", torch_dtype=torch.float16, variant="fp16")
 pipeline.enable_model_cpu_offload()
 '''
 
 #데이터 파싱
+class setup(BaseModel):
+    width: int
+    height: int
+
 class ImageRequest(BaseModel):
-    user_id: str
+    setup: setup
+    userid: str
     prompt: str
+    model: str
 
 class VideoRequest(BaseModel):
-    user_id: str
+    userid: str
     imagePrompt: str
     videoPrompt: str
     
 class scenarioRequest(BaseModel):
-    user_id: str
-    scenarioPrompt: str   
+    prompt: str   
 
 #pipe.load_lora_weights("C:/Users/AhnLab/Desktop/sd1.5.safetensors",weight_name="default", lora_scale=0.7) #0.5~1
 
@@ -72,6 +67,8 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     # URL 쿼리 파라미터로 user_id 받아오기
     user_id = websocket.query_params.get("user_id")
+    user_folder = os.path.join(TEMP_DIR, data.user_id)
+    os.makedirs(user_folder, exist_ok=True)
     print(f"{user_id}")
 
     try:
@@ -117,15 +114,26 @@ async def generate_image(data: ImageRequest):
 
     """클라이언트에서 JSON 데이터를 받아 응답하는 핸들러"""
     try:
-        user_id = data.user_id
-        text = data.prompt
-        #image = pipe(text, generator=generator, num_inference_steps=30).images[0]
+        #이미지 모델
+        model_url=os.path.join("C:/Users/AhnLab/Desktop",data.model)
+        print(model_url)
+        '''
+        pipe = StableDiffusionPipeline.from_single_file(
+            "C:/Users/AhnLab/Desktop/DreamShaper_8.safetensors",  # DreamShaper 파일 경로
+            torch_dtype=torch.float16,
+            safety_checker=None,  # 필요 시 꺼줄 수 있음
+        )
+        pipe = pipe.to("cuda")
+        print(torch.cuda.is_available())
 
-        image_filename=text+'.png'
+        generator = torch.manual_seed(33)
 
-        #사용자 전용 폴더생성
-        user_folder = os.path.join(TEMP_DIR, user_id)
-        os.makedirs(user_folder, exist_ok=True)
+        image = pipe(data.prompt, generator=generator,width=data.setup.width,height=data.setup.height, num_inference_steps=30).images[0]
+        '''
+        image_filename=data.prompt+'.png'
+        print(f"\n{data.setup.width},{data.setup.height},{data.model}")
+
+        user_folder = os.path.join(TEMP_DIR, data.userid)
         
         image_path = os.path.abspath(os.path.join(user_folder, image_filename))
         #image.save(image_path)
@@ -148,7 +156,7 @@ async def generate_video(data: VideoRequest):
 
     """클라이언트에서 JSON 데이터를 받아 응답하는 핸들러"""
     try:
-        user_id = data.user_id
+        user_id = data.userid
         image_filename=data.imagePrompt+'.png'
         user_folder = os.path.join(TEMP_DIR, user_id)
         image_path = os.path.abspath(os.path.join(user_folder, image_filename))
@@ -191,9 +199,8 @@ async def generate_scenario(data: scenarioRequest):
     prompt = PromptTemplate.from_template(template=template)
 
     summarize_chain = prompt | llm | StrOutputParser()
-    result=summarize_chain.invoke(dict(paragraph=data.scenarioPrompt))
+    result=summarize_chain.invoke(dict(paragraph=data.prompt))
     print(result)
-    print(f"\n{data.user_id}")
     return JSONResponse(content={"scenario":result ,"status":"success"})
 
 
