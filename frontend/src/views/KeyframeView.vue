@@ -41,6 +41,7 @@
   
   <script setup>
 import { useAppStore } from '@/stores/appStore'
+import { onMounted } from 'vue'
 import KeyframePage from '@/components/KeyframePage.vue'
 import ArrowNextButton from '@/components/ArrowNextButton.vue'
 import { useRouter } from 'vue-router'
@@ -58,7 +59,12 @@ async function generateImage(index) {
   try {
     const res = await axios.post('/api/generate-image', {
       prompt: block.text,
-      userid: localStorage.getItem('userId'),
+    setup: {
+    width: block.setup.width,
+    height: block.setup.height
+  },
+      userid:userId,
+      model: block.modelName,
     })
     block.imageUrl = res.data.imageUrl
   } catch (err) {
@@ -69,6 +75,18 @@ async function generateImage(index) {
     alert('이미지 생성 중 오류가 발생했습니다.')
   }
 }
+
+onMounted(() => {
+  if (store.socket) {
+    store.socket.onmessage = (event) => {
+      const data = JSON.parse(event.data)
+      if (data.type === 'image_progress') {
+        const { blockIndex, progress } = data
+        store.progressMap[blockIndex] = progress
+      }
+    }
+  }
+})
 
 // 비디오 생성
 async function generateVideo(index) {
@@ -101,8 +119,11 @@ function addPrompt() {
     imageUrl: '',
     videoUrl: '',
     videoPrompt: '',
-    width: 640,
-    height: 360,
+    setup: {
+      width: 640,
+      height: 360,
+    },
+     modelName: '' 
   })
 }
 
@@ -116,7 +137,7 @@ async function generateFinalVideo() {
   }
 
   try {
-    const res = await axios.post('http://192.168.0.3:8000/api/generate-video', {
+    const res = await axios.post('/api/generate-video', {
   imageUrl: block.imageUrl,
   videoPrompt: block.videoPrompt, 
   userid: userId,
