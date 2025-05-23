@@ -63,7 +63,7 @@ async function generateImage(index) {
     width: block.setup.width,
     height: block.setup.height
   },
-      userid: localStorage.getItem('userId'),
+      userid: sessionStorage.getItem('userId'),
       model: block.modelName,
     })
     block.imageUrl = res.data.imageUrl
@@ -97,7 +97,7 @@ async function generateVideo(index) {
     const res = await axios.post('/api/generate-video', {
       imageUrl: block.imageUrl,
       videoPrompt: block.videoPrompt,
-      userid: localStorage.getItem('userId'),
+      userid: sessionStorage.getItem('userId'),
     })
     block.videoUrl = res.data.videoUrl
   } catch (err) {
@@ -140,7 +140,7 @@ async function generateFinalVideo() {
     const res = await axios.post('/api/generate-video', {
   imageUrl: block.imageUrl,
   videoPrompt: block.videoPrompt, 
-  userid: userId,
+  userid: sessionStorage.getItem("userId"),
 })
 
     store.finalVideoUrl = res.data.finalVideoUrl

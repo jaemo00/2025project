@@ -1,5 +1,5 @@
 import torch
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends
 from fastapi.responses import JSONResponse,HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -16,10 +16,14 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 
+from sqlalchemy.orm import Session
+import models
+from database import SessionLocal, engine, Base
 
 # API KEY 정보로드
 load_dotenv()
 
+Base.metadata.create_all(bind=engine)
 
 '''
 #영상 모델
@@ -44,6 +48,7 @@ class VideoRequest(BaseModel):
     videoPrompt: str
     
 class scenarioRequest(BaseModel):
+    userid: str
     prompt: str   
 
 #pipe.load_lora_weights("C:/Users/AhnLab/Desktop/sd1.5.safetensors",weight_name="default", lora_scale=0.7) #0.5~1
@@ -54,6 +59,8 @@ mimetypes.add_type('application/javascript', '.js')
 mimetypes.add_type('text/css', '.css')
 
 app = FastAPI()
+
+
 #BASE_DIR = pathlib.Path(__file__).parent
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMP_DIR = os.path.join(BASE_DIR, "temp")
@@ -108,6 +115,13 @@ async def fallback(full_path: str):
         return HTMLResponse(status_code=404, content="웹소켓은 FastAPI가 처리함")
     return FileResponse(os.path.join(DIST_DIR, "index.html"))
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 
 @app.post("/api/generate-image")
 async def generate_image(data: ImageRequest):
@@ -143,11 +157,11 @@ async def generate_image(data: ImageRequest):
         if not os.path.exists(image_path):
             image_path = os.path.join(TEMP_DIR, "default.png")  # 기본 이미지 반환
         print(f"path:{image_path}")
-        return JSONResponse(content={"imageUrl": image_filename,"status":"success"})
+        return JSONResponse(content={"imageUrl": f"temp/{data.userid}/{image_filename}","status":"success"})
         
 
     except Exception as e:
-        return JSONResponse(content={"imageUrl": image_filename,"status":"success"})
+        return JSONResponse(content={"imageUrl": f"temp/{data.userid}/{image_filename}","status":"success"})
     
 
 
@@ -187,7 +201,7 @@ def init_model():
     return ChatOpenAI(model=MODEL_NAME, temperature=0.5)
 
 @app.post("/api/generate-scenario")
-async def generate_scenario(data: scenarioRequest):
+async def generate_scenario(data: scenarioRequest, db: Session = Depends(get_db)):
     llm = init_model()
     template = '''
     You are a scenario writer.
@@ -201,7 +215,12 @@ async def generate_scenario(data: scenarioRequest):
     summarize_chain = prompt | llm | StrOutputParser()
     result=summarize_chain.invoke(dict(paragraph=data.prompt))
     print(result)
+    db_item = models.TextItem(user_id=data.userid, content=result)
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
     return JSONResponse(content={"scenario":result ,"status":"success"})
+
 
 
 if __name__ == "__main__":
