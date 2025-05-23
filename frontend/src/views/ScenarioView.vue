@@ -63,11 +63,11 @@ const socketStatus = ref('')
 
 onMounted(() => {
   // UUID 생성 및 저장
-  let savedId = localStorage.getItem('userId')
+  let savedId = sessionStorage.getItem('userId')
   if (!savedId) {
     savedId = uuidv4()
     console.log("생성된 사용자 ID:", savedId)
-    localStorage.setItem('userId', savedId)
+    sessionStorage.setItem('userId', savedId)
   }
   console.log("사용자 ID:", savedId)
 
