@@ -49,6 +49,7 @@
 
   try {
     const res = await axios.post('/api/generate-scenario', {
+      userid: sessionStorage.getItem('userId'),
       prompt: store.scenarioPrompt
     })
 
@@ -65,7 +66,7 @@ onMounted(() => {
   // UUID 생성 및 저장
   let savedId = sessionStorage.getItem('userId')
   if (!savedId) {
-    savedId = uuidv4()
+    savedId = "jm"
     console.log("생성된 사용자 ID:", savedId)
     sessionStorage.setItem('userId', savedId)
   }

@@ -18,7 +18,14 @@ from dotenv import load_dotenv
 
 from sqlalchemy.orm import Session
 import models
-from database import SessionLocal, engine, Base
+from database import engine, Base, SessionLocal
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # API KEY 정보로드
 load_dotenv()
@@ -84,16 +91,8 @@ async def websocket_endpoint(websocket: WebSocket):
             # 필요하면 처리
     except WebSocketDisconnect:
         print(f"WebSocket disconnected for user: {user_id}")
-        # 사용자 temp폴더 삭제
-        user_temp_folder = os.path.join(TEMP_DIR, user_id)
-        if os.path.exists(user_temp_folder):
-            shutil.rmtree(user_temp_folder)
 
-@app.get('/',response_class=HTMLResponse)
-async def serve_frontend():
-    with open(os.path.join(DIST_DIR, "index.html"), encoding="utf-8") as f:
-        html = f.read()
-    return HTMLResponse(content=html)
+
 
 # frontend 폴더 mount
 app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")
@@ -108,23 +107,13 @@ app.mount("/temp", StaticFiles(directory=TEMP_DIR), name="temp")
 
 
 
-#fallback함수 : vue에서 처리할 경로의 요청은 index.html 보냄
-@app.get("/{full_path:path}", response_class=HTMLResponse)
-async def fallback(full_path: str):
-    if full_path.startswith("ws"):
-        return HTMLResponse(status_code=404, content="웹소켓은 FastAPI가 처리함")
-    return FileResponse(os.path.join(DIST_DIR, "index.html"))
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+
+
 
 
 @app.post("/api/generate-image")
-async def generate_image(data: ImageRequest):
+async def generate_image(data: ImageRequest, db: Session = Depends(get_db)):
 
     """클라이언트에서 JSON 데이터를 받아 응답하는 핸들러"""
     try:
@@ -152,6 +141,17 @@ async def generate_image(data: ImageRequest):
         image_path = os.path.abspath(os.path.join(user_folder, image_filename))
         #image.save(image_path)
         
+        db_item = models.Image(
+            user_id=data.userid,
+            prompt= f"temp/{data.userid}/{image_filename}",
+            model=data.model,
+            width=data.setup.width,
+            height=data.setup.height,
+        )
+        db.add(db_item)
+        db.commit()
+        db.refresh(db_item)
+
         print(f"Received text: {image_filename}") 
 
         if not os.path.exists(image_path):
@@ -215,12 +215,39 @@ async def generate_scenario(data: scenarioRequest, db: Session = Depends(get_db)
     summarize_chain = prompt | llm | StrOutputParser()
     result=summarize_chain.invoke(dict(paragraph=data.prompt))
     print(result)
-    db_item = models.TextItem(user_id=data.userid, content=result)
+
+    db_item = models.Scenario(user_id=data.userid, content=result)
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
     return JSONResponse(content={"scenario":result ,"status":"success"})
 
+@app.get("/api/saved/{user_id}")
+def get_user_texts(user_id: str, db: Session = Depends(get_db)):
+    print("잘 실행됨")
+    scenario = db.query(models.Scenario).filter(models.Scenario.user_id == user_id).all()
+    image = db.query(models.Image).filter(models.Image.user_id==user_id).all()
+
+    data_scenario = [{"id": item.id, "Scenario": item.content} for item in scenario]
+    data_image = [{"id":item.id,"image":item.prompt,"model":item.model,"width":item.width,"height":item.height} for item in image]
+
+    return JSONResponse(content={"user_id": user_id, "Scenario": data_scenario, "image":data_image})
+
+
+@app.get('/',response_class=HTMLResponse)
+async def serve_frontend():
+    print("/ 실행")
+    with open(os.path.join(DIST_DIR, "index.html"), encoding="utf-8") as f:
+        html = f.read()
+    return HTMLResponse(content=html)
+
+#fallback함수 : vue에서 처리할 경로의 요청은 index.html 보냄
+@app.get("/{full_path:path}", response_class=HTMLResponse)
+async def fallback(full_path: str):
+    print("폴백함수 실행")
+    if full_path.startswith("ws"):
+        return HTMLResponse(status_code=404, content="웹소켓은 FastAPI가 처리함")
+    return FileResponse(os.path.join(DIST_DIR, "index.html"))
 
 
 if __name__ == "__main__":
