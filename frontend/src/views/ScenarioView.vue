@@ -32,6 +32,7 @@
   
 
       <ArrowNextButton direction="next" to="/keyframes" class="absolute bottom-6 right-6" />
+      <ArrowNextButton direction="prev" to="/login" class="fixed bottom-6 left-6" />
     </div>
   </template>
   
@@ -63,15 +64,6 @@ const socket = ref(null)
 const socketStatus = ref('')
 
 onMounted(() => {
-  // UUID 생성 및 저장
-  
-  const userId = ref('')
-  let savedId = localStorage.getItem('userId')
-  if (!savedId) {
-    savedId = uuidv4()
-    console.log("생성된 사용자 ID:", savedId)
-    localStorage.setItem('userId', savedId)
-  }
-
+  store.initWebSocket()
 })
   </script>

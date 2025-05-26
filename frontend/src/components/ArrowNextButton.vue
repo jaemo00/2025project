@@ -13,7 +13,7 @@
     props: {
       direction: {
         type: String,
-        default: 'next', // or 'prev'
+        default: 'next', 
       },
       to: {
         type: String,

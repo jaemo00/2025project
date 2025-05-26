@@ -74,6 +74,14 @@
     >
       다시 생성
     </button>
+
+    <a
+  :href="block.imageUrl"
+  download
+  class="bg-gray-200 text-sm text-gray-800 px-3 py-1 rounded hover:bg-gray-300 inline-block mt-2"
+>
+  이미지 다운로드
+</a>
   </div>
 
   <!--이미지 생성 진행상황 확인-->

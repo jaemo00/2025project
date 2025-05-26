@@ -13,6 +13,7 @@ export const useAppStore = defineStore('app', {
         videoUrl: '',
         videoPrompt: '',
         setup: { width: 640, height: 360 },
+        modelName: '' 
       },
     ],
     finalVideoUrl: '',
@@ -38,46 +39,56 @@ export const useAppStore = defineStore('app', {
     // 키프레임 초기화
     resetKeyframes() {
       this.keyframeBlocks = [
-        { text: '', imageUrl: '', videoUrl: '', videoPrompt: '' },
+      {
+        text: '',
+        imageUrl: '',
+        videoUrl: '',
+        videoPrompt: '',
+        setup: { width: 640, height: 360 },
+        modelName: '' 
+      },
       ]
     },
 
-    // ✅ WebSocket 연결 초기화
-    initWebSocket() {
-      let savedId = localStorage.getItem('userId')
-      if (!savedId) {
-        savedId = uuidv4()
-        localStorage.setItem('userId', savedId)
-      }
-      this.userId = savedId
+     initWebSocket() {
+  const savedId = localStorage.getItem('userId')
+  if (!this.userId && savedId) {
+    this.userId = savedId
+  }
 
-      this.socket = new WebSocket(`ws://192.168.0.3:8000/ws?user_id=${savedId}`)
+      // 이미 연결돼 있으면 다시 연결하지 않음
+      if (this.socket && this.socket.readyState <= 1) return
+
+      this.socket = new WebSocket(`ws://localhost:8000/ws?user_id=${this.userId}`)
 
       this.socket.onopen = () => {
-        console.log('✅ 웹소켓 연결됨')
-        this.socketStatus = '✅ 연결됨'
+        console.log('✅ WebSocket 연결 성공')
+        this.socketStatus = 'connected'
       }
 
       this.socket.onclose = () => {
-        console.log('❌ 웹소켓 종료됨')
-        this.socketStatus = '❌ 연결 종료됨'
+        console.warn('❌ WebSocket 연결 종료됨')
+        this.socketStatus = 'disconnected'
       }
 
-      this.socket.onerror = (e) => {
-        console.error('⚠️ 웹소켓 에러 발생:', e)
-        this.socketStatus = '⚠️ 에러 발생'
+      this.socket.onerror = (error) => {
+        console.error('⚠️ WebSocket 에러 발생:', error)
+        this.socketStatus = 'error'
       }
 
       this.socket.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data)
+
+          // 예: image_progress 라는 타입이 왔을 때
           if (msg.type === 'image_progress') {
-            this.progressMap[msg.blockIndex] = msg.progress
+            const { blockIndex, progress } = msg
+            this.progressMap[blockIndex] = progress
           }
-        } catch (e) {
-          console.warn('메시지 파싱 실패:', event.data)
+        } catch (err) {
+          console.warn('메시지 JSON 파싱 실패:', event.data)
         }
       }
-    },
-  },
+    }
+  }
 })
