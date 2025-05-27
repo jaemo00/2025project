@@ -36,6 +36,10 @@ export const useAppStore = defineStore('app', {
       this.generatedScenario = ''
     },
 
+      setUserId(id) {
+    this.userId = id
+  },
+
     // 키프레임 초기화
     resetKeyframes() {
       this.keyframeBlocks = [
@@ -59,7 +63,7 @@ export const useAppStore = defineStore('app', {
       // 이미 연결돼 있으면 다시 연결하지 않음
       if (this.socket && this.socket.readyState <= 1) return
 
-      this.socket = new WebSocket(`ws://localhost:8000/ws?user_id=${this.userId}`)
+      this.socket = new WebSocket(`ws://192.168.0.5:8000/ws?user_id=${this.userId}`)
 
       this.socket.onopen = () => {
         console.log('✅ WebSocket 연결 성공')
