@@ -39,14 +39,14 @@ async function login() {
   const trimmedId = userId.value.trim()
   store.setUserId(trimmedId)
   localStorage.setItem('userId', trimmedId)
-
+  console.log(trimmedId)
   try {
-    await axios.post('http://192.168.0.5:8000/api/init-user', {
+    await axios.post('/api/init-user', {
       userid: trimmedId
     })
     
-    const res = await axios.get(`http://192.168.0.5:8000/api/scenario-list?user_id=${userId.value.trim()}`)
-    store.scenarioList = res.data.scenarios
+    const res = await axios.get(`/api/saved/{userId.value.trim()}`)
+    store.scenarioList = res.data.Scenario
   } catch (e) {
     console.error('시나리오 목록 로딩 실패:', e)
   }

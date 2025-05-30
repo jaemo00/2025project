@@ -79,7 +79,8 @@
   if (!store.scenarioPrompt.trim()) return
 
   try {
-    const res = await axios.post('http://192.168.0.5:8000/api/generate-scenario', {
+    const res = await axios.post('/api/generate-scenario', {
+      userid: localStorage.getItem('userId'),
       prompt: store.scenarioPrompt
     })
 

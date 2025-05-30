@@ -34,11 +34,14 @@ Base.metadata.create_all(bind=engine)
 
 
 #영상 모델
-pipeline = I2VGenXLPipeline.from_pretrained("ali-vilab/i2vgen-xl", torch_dtype=torch.float16, variant="fp16")
-pipeline.enable_model_cpu_offload()
+#pipeline = I2VGenXLPipeline.from_pretrained("ali-vilab/i2vgen-xl", torch_dtype=torch.float16, variant="fp16")
+#pipeline.enable_model_cpu_offload()
 
 
 #데이터 파싱
+class init(BaseModel):
+    userid: str
+
 class setup(BaseModel):
     width: int
     height: int
@@ -81,9 +84,6 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     # URL 쿼리 파라미터로 user_id 받아오기
     user_id = websocket.query_params.get("user_id")
-    user_folder = os.path.join(TEMP_DIR, user_id)
-    os.makedirs(user_folder, exist_ok=True)
-    print(f"{user_id}")
 
     try:
         while True:
@@ -103,12 +103,6 @@ app.mount(
 )
 # static 파일들 mount
 app.mount("/temp", StaticFiles(directory=TEMP_DIR), name="temp")
-
-
-
-
-
-
 
 
 
@@ -224,6 +218,12 @@ async def generate_scenario(data: scenarioRequest, db: Session = Depends(get_db)
     db.commit()
     db.refresh(db_item)
     return JSONResponse(content={"scenario":result ,"status":"success"})
+
+@app.post('/api/init-user')
+def init(user_id:init):
+    user_folder = os.path.join(TEMP_DIR, user_id.userid)
+    os.makedirs(user_folder, exist_ok=True)
+    print(f"{user_id}")
 
 @app.get("/api/saved/{user_id}")
 def get_user_texts(user_id: str, db: Session = Depends(get_db)):
