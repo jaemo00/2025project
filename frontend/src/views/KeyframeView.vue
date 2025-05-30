@@ -57,7 +57,7 @@ async function generateImage(index) {
   if (!block.text?.trim()) return
 
   try {
-    const res = await axios.post('http://192.168.0.5:8000/api/generate-image', {
+    const res = await axios.post('/api/generate-image', {
       prompt: block.text,
     setup: {
     width: block.setup.width,
@@ -91,7 +91,7 @@ async function generateVideo(index) {
   if (!block.text?.trim() || !block.videoPrompt?.trim()) return
 
   try {
-    const res = await axios.post('http://192.168.0.5:8000/api/generate-video', {
+    const res = await axios.post('/api/generate-video', {
       imageUrl: block.imageUrl,
       videoPrompt: block.videoPrompt,
       userid:userId,
@@ -134,7 +134,7 @@ async function generateFinalVideo() {
   }
 
   try {
-    const res = await axios.post('http://192.168.0.5:8000/api/generate-video', {
+    const res = await axios.post('/api/generate-video', {
   imageUrl: block.imageUrl,
   videoPrompt: block.videoPrompt, 
   userid: userId,

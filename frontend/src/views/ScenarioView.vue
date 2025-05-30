@@ -69,9 +69,8 @@
   <script setup>
   import { useAppStore } from '@/stores/appStore'
   import ArrowNextButton from '@/components/ArrowNextButton.vue'
-  import { v4 as uuidv4 } from 'uuid';
   import { ref, onMounted } from 'vue'
-
+  import axios from 'axios'
   const store = useAppStore()
   
 
