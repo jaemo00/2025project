@@ -20,6 +20,9 @@ from sqlalchemy.orm import Session
 import models
 from database import engine, Base, SessionLocal
 
+#pip install fastapi uvicorn pydantic langchain langchain-openai langchain-core openai \
+#diffusers transformers accelerate safetensors Pillow torch python-dotenv sqlalchemy
+
 def get_db():
     db = SessionLocal()
     try:
