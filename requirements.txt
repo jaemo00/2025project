@@ -1,0 +1,16 @@
+# requirements.txt 예시
+fastapi
+uvicorn
+pydantic
+langchain
+langchain-openai
+langchain-core
+openai
+diffusers
+transformers
+accelerate
+safetensors
+Pillow
+torch
+python-dotenv
+sqlalchemy
