@@ -229,12 +229,12 @@ Your task:
 
 
 
-def gen_dalle(prompt,background,save_dir):
+def gen_dalle_first(prompt,background,save_dir):
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     # dall-e-3 이미지 생성
     result = client.images.generate(
     model="dall-e-3",
-    prompt=(prompt,
+    prompt=(prompt
         + ", " + background
         + ", highly detailed, photo-realistic, natural colors, realistic photography, no cartoon, no illustration"),
     size="1024x1024",
@@ -247,7 +247,27 @@ def gen_dalle(prompt,background,save_dir):
     # 저장
     with open(save_dir, "wb") as f:
         f.write(image_bytes)
-        
+
+#연속이미지 생성함수
+def gen_dalle_series(prompt,background,previous_img,save_dir):
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    with open(previous_img, "rb") as img_fp:
+        result = client.images.edit(
+            model="gpt-image-1",
+            image=img_fp,
+            prompt=(  prompt + ", " + background
+        + ", highly detailed, photo-realistic, natural colors, realistic photography, no cartoon, no illustration"
+    )       ,
+            n=1,
+            size="1024x1024",
+        )
+
+    image_b64 = result.data[0].b64_json
+    image_bytes = base64.b64decode(image_b64)
+
+    with open(save_dir, "wb") as f:
+        f.write(image_bytes)        
 
 
 

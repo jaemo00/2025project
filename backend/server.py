@@ -13,8 +13,6 @@ from PIL import Image
 from typing import Dict, Optional, List
 from diffusers import DiffusionPipeline
 from diffusers import StableDiffusionPipeline
-from diffusers import I2VGenXLPipeline
-from diffusers.utils import export_to_gif, load_image
 import shutil
 from langchain import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
