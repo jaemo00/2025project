@@ -46,28 +46,12 @@ def get_db():
 
 Base.metadata.create_all(bind=engine)
 
-<<<<<<< HEAD
-
-#영상 모델
-#pipeline = I2VGenXLPipeline.from_pretrained("ali-vilab/i2vgen-xl", torch_dtype=torch.float16, variant="fp16")
-#pipeline.enable_model_cpu_offload()
-
-
-#데이터 파싱
-class init(BaseModel):
-    userid: str
-
-class setup(BaseModel):
-    width: int
-    height: int
-=======
 
 #데이터 파싱
 class init(BaseModel):
     user_id: str
 
 
->>>>>>> 85e6f9e (backend)
 
 
 class VideoRequest(BaseModel):
@@ -152,15 +136,11 @@ def dump_exc(prefix: str, e: Exception):
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     user_id = websocket.query_params.get("user_id")
-<<<<<<< HEAD
-
-=======
     
     # 사용자별 WebSocket 연결 저장
     active_websockets[user_id] = websocket
     print(f"✅ WebSocket 연결됨: {user_id}")
     
->>>>>>> 85e6f9e (backend)
     try:
         while True:
             # 연결 유지를 위해 메시지 대기
@@ -181,60 +161,6 @@ async def websocket_endpoint(websocket: WebSocket):
 
 # 1.1 주제생성
 
-<<<<<<< HEAD
-
-@app.post("/api/generate-image")
-async def generate_image(data: ImageRequest, db: Session = Depends(get_db)):
-
-    """클라이언트에서 JSON 데이터를 받아 응답하는 핸들러"""
-    try:
-        #이미지 모델
-        model_url=os.path.join("C:/Users/AhnLab/Desktop",data.model)
-        print(model_url)
-        
-        pipe = StableDiffusionPipeline.from_single_file(
-            "C:/Users/AhnLab/Desktop/DreamShaper_8.safetensors",  # DreamShaper 파일 경로
-            torch_dtype=torch.float16,
-            safety_checker=None,  # 필요 시 꺼줄 수 있음
-        )
-        pipe = pipe.to("cuda")
-        print(torch.cuda.is_available())
-
-        generator = torch.manual_seed(33)
-
-        image = pipe(data.prompt, generator=generator,width=data.setup.width,height=data.setup.height, num_inference_steps=30).images[0]
-        
-        image_filename=data.prompt+'.png'
-        print(f"\n{data.setup.width},{data.setup.height},{data.model}")
-
-        user_folder = os.path.join(TEMP_DIR, data.userid)
-        
-        image_path = os.path.abspath(os.path.join(user_folder, image_filename))
-        image.save(image_path)
-        
-        db_item = models.Image(
-            user_id=data.userid,
-            prompt= f"temp/{data.userid}/{image_filename}",
-            model=data.model,
-            width=data.setup.width,
-            height=data.setup.height,
-        )
-        db.add(db_item)
-        db.commit()
-        db.refresh(db_item)
-
-        print(f"Received text: {image_filename}") 
-
-        if not os.path.exists(image_path):
-            image_path = os.path.join(TEMP_DIR, "default.png")  # 기본 이미지 반환
-        print(f"path:{image_path}")
-        return JSONResponse(content={"imageUrl": f"temp/{data.userid}/{image_filename}","status":"success"})
-        
-
-    except Exception as e:
-        return JSONResponse(content={"imageUrl": f"temp/{data.userid}/{image_filename}","status":"success"})
-=======
->>>>>>> 85e6f9e (backend)
     
 
 
@@ -249,29 +175,6 @@ async def generate_video(data: VideoRequest):
         image_filename = data.imagePrompt + '.png'
         user_folder = os.path.join(TEMP_DIR, user_id)
         image_path = os.path.abspath(os.path.join(user_folder, image_filename))
-<<<<<<< HEAD
-        image = load_image(image_path).convert("RGB")
-        generator = torch.manual_seed(33)
-            
-        print(f"Received imagefile: {image_filename}") 
-        
-        frames = pipeline(
-            prompt=data.videoPrompt,
-            image=image,
-            num_inference_steps=40,
-            negative_prompt="",
-            guidance_scale=1,
-            generator=generator
-        ).frames[0]
-        
-        
-        
-        video_filename=data.imagePrompt+'.gif'
-        '''
-        video_path = os.path.abspath(os.path.join(user_folder, video_filename))
-        export_to_gif(frames, video_path)'''
-        return JSONResponse(content={"videoUrl": video_filename,"status":"success"})
-=======
         
         # 비디오 생성 시작 - 진행률 0%
         await send_video_progress(data.user_id, block_index, 0)
@@ -309,7 +212,6 @@ async def generate_video(data: VideoRequest):
             "status": "success"
         })
         
->>>>>>> 85e6f9e (backend)
     except Exception as e:
         print(f"❌ 비디오 생성 실패: {e}")
         return JSONResponse(content={
