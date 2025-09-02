@@ -272,6 +272,77 @@ def gen_dalle_series(prompt,background,previous_img,save_dir):
 
 
 
+def gen_video_prompt(user_topic_input,topic,description, content,background_prompt,current_content,middle_content,next_content,first_prompt,middle_prompt,last_prompt):
+    from langchain import PromptTemplate
+    from langchain_core.output_parsers import StrOutputParser
+    from langchain_openai import ChatOpenAI
+    llm = trranslate_model()
+
+    template ="""
+You are a prompt generation specialist whose goal is to write the high-quality English prompts for video generation by referring to the details of the three images and input, making them more complete and expressive while maintaining the original meaning. The video you need to create is one cut of the entire video. you need to create a prompt, strictly adhering to the formatting of the examples provided.
+    Task Requirements:
+    1. Descriptions of three images will be given, the first is the first frame of the video, and the second is the middle frame of the video and the third is the last frame of the video. You need to create a prompt so that the three photos connect naturally.
+    2. reasonably infer and supplement details without changing the original meaning, making the video more complete and visually appealing
+    3. Improve the characteristics of the main subject in the image description (such as appearance, expression, quantity, ethnicity, posture, etc.), rendering style, spatial relationships, and camera angles
+    4. Consider the overall content of the video and what the user is trying to create.
+    5. The overall output should be in English
+    6. The prompt should match the user’s intent and provide a precise and detailed style description. If the user has not specified a style, you need to carefully analyze the style of the provided photo and use that as a reference for writing
+    7. You need to emphasize movement information in the input and different camera angles
+    8. Your output should convey natural movement attributes, incorporating natural actions related to the described subject category, using simple and direct verbs as much as possible
+    9. You should reference the detailed information in the image, such as character actions, clothing, backgrounds, and emphasize the details in the photo
+    10. You need to emphasize potential changes that may occur between the two frames, such as "walking into", "appearing", "turning into", "camera left", "camera right", "camera up", "camera down", etc.
+    11. Control the prompt to around 80-100 words. Include only the necessary information and do not expand it unnecessarily
+    
+    Example of the English prompt:
+    1. A Japanese fresh film-style photo of a young East Asian girl with double braids sitting by the boat. The girl wears a white square collar puff sleeve dress, decorated with pleats and buttons. 
+    She has fair skin, delicate features, and slightly melancholic eyes, staring directly at the camera. Her hair falls naturally, with bangs covering part of her forehead. She rests her hands on the boat, appearing natural and relaxed. The background features a blurred outdoor scene, with hints of blue sky, 
+    mountains, and some dry plants. The photo has a vintage film texture. A medium shot of a seated portrait.
+    2. An anime illustration in vibrant thick painting style of a white girl with cat ears holding a folder, showing a slightly dissatisfied expression. 
+    She has long dark purple hair and red eyes, wearing a dark gray skirt and a light gray top with a white waist tie. The background has a light yellow indoor tone, with faint outlines of some furniture visible. A pink halo hovers above her head, in a smooth Japanese cel-shading style. A close-up shot from a slightly elevated perspective.
+    3. CG game concept digital art featuring a huge crocodile with its mouth wide open, with trees and thorns growing on its back. The crocodile's skin is rough and grayish-white, resembling stone or wood texture. Its back is lush with trees, shrubs, and thorny protrusions. With its mouth agape, the crocodile reveals a pink tongue and sharp teeth. 
+    The background features a dusk sky with some distant trees, giving the overall scene a dark and cold atmosphere. A close-up from a low angle.
+    4. In the style of an American drama promotional poster, Walter White sits in a metal folding chair wearing a yellow protective suit, with the words "Breaking Bad" written in sans-serif English above him, surrounded by piles of dollar bills and blue plastic storage boxes. He wears glasses, 
+    staring forward, dressed in a yellow jumpsuit, with his hands resting on his knees, exuding a calm and confident demeanor. The background shows an abandoned, dim factory with light filtering through the windows. There’s a noticeable grainy texture. A medium shot with a straight-on close-up of the character.
+    
+    Directly output the generated English text.
+
+    Input field description:
+- **first image description (`{first_prompt}`)**: This is a description of the starting frame of the scene you are currently creating from the entire video.
+- **middle image description (`{middle_prompt}`)**: Visual description of the middle frame of this cut.  
+- **last image description (`{last_prompt}`)**: This is a description of the last frame of the scene you are currently creating in the entire video.
+- **User Topic Input (`{user_topic_input}`)**: User-provided topic keywords or simple requests. For example, “Video of melting chocolate.”
+- **Topic (`{topic}`)**: The main topic of the video. For example, “Expressing the texture of high-quality dark chocolate.”
+- **Description (`{description}`)**: A summary and description of the overall mood of the video. For example, “A scene of chocolate slowly melting in a quiet and sensual atmosphere.”
+- **Whole Content (`{content}`)**: Full content of the video to be created
+- **Background (`{background_prompt}`)**: The overall background and style directive. For example, “Luxurious interior, soft natural light, cinematic style.”
+
+- **Current content ('{current_content}')**: Narrative description of what happens at the start of this scene.
+- **Middle content ('{middle_content})**: Narrative description of what happens in the middle of this scene.
+- **Next contetnt ('{next_content}')**: Narrative description of what happens at the end of this scene, leading into the next one.
+
+
+[Input]
+-first image description: {first_prompt}
+-middle image description: {middle_prompt}
+-last image description: {last_prompt}
+-User Topic Input: {user_topic_input}
+-Topic: {topic}
+-Description: {description}
+-Whole Content: {content}
+-Background: {background_prompt}
+-Current content: {current_content}
+-middle content: {middle_content}
+-Next content: {next_content}
+
+output rules:
+- Directly output the generated English text.
+- Do NOT include labels like [Video Prompt], PROMPT:, CAMERA:, LIGHTING:, STYLE: in the final output.
+- No brackets, tags, or section headers in the output.
+
+"""
+    prompt = PromptTemplate.from_template(template)
+    chain = prompt | llm | StrOutputParser()
+    return chain.invoke({"user_topic_input": user_topic_input, "topic": topic, "description": description, "content":content,"background_prompt":background_prompt,"current_content":current_content,"middle_content":middle_content,"next_content":next_content,"first_prompt":first_prompt,"middle_prompt":middle_prompt,"last_prompt":last_prompt})
 
 
 
