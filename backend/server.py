@@ -1,39 +1,101 @@
+import os
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True,garbage_collection_threshold:0.8,max_split_size_mb:64"
+
 import torch
 import asyncio
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends,APIRouter, Form, File, UploadFile
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends,APIRouter, Form, File, UploadFile, Request
 from fastapi.responses import JSONResponse,HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import uvicorn
-import json
-import os
-import re
 from PIL import Image
 from typing import Dict, Optional, List
 from diffusers import DiffusionPipeline
-from diffusers import StableDiffusionPipeline
+from diffusers import AutoencoderKLWan, WanVACEPipeline
+from diffusers.schedulers.scheduling_unipc_multistep import UniPCMultistepScheduler
 import shutil
 from langchain import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
-from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv
 import logging, traceback
 from pathlib import Path
+import anyio, gc
 
+from api import api_video
 from api import api_scenario
-from config import *
+from api import api_image
+from api import api_chr_scenario
+from api import api_chr_image
+from utils.config import *
+import utils.scenario as scenario
+from app_core import app
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 import models
 from database import engine, Base, SessionLocal
 from fastapi.exceptions import RequestValidationError
 
 
-
+load_dotenv()
 #pip install fastapi uvicorn pydantic langchain langchain-openai langchain-core openai \
 #diffusers transformers accelerate safetensors Pillow torch python-dotenv sqlalchemy
+# pipe = DiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=torch.float16, use_safetensors=True, variant="fp16")
+# pipe.vae.enable_tiling()
+# pipe.vae.enable_slicing()
+# pipe.to("cuda")
+app.state.pipe = None
+app.state.video_pipe=None
+app.state.EMIT_LOOP=None
+app.state.gpu_sem = anyio.Semaphore(1)  # 동시 생성 제한
+app.state.active_websockets = {}
+
+def load_pipe():
+    pipe = DiffusionPipeline.from_pretrained(
+        "stabilityai/stable-diffusion-xl-base-1.0",
+        torch_dtype=torch.float16,
+        use_safetensors=True,
+    )
+    pipe.vae.enable_tiling()
+    pipe.vae.enable_slicing()
+    pipe.to("cuda")
+
+    return pipe
+
+def load_video_pipe():
+    model_id = "Wan-AI/Wan2.1-VACE-1.3B-diffusers"
+    vae = AutoencoderKLWan.from_pretrained(model_id, subfolder="vae", torch_dtype=torch.float32)
+    pipe = WanVACEPipeline.from_pretrained(model_id, vae=vae, torch_dtype=torch.bfloat16)
+    flow_shift = 5.0  # 480p면 3.0, 720p면 5.0 권장
+    pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config, flow_shift=flow_shift)
+    pipe.vae.enable_tiling()
+    pipe.vae.enable_slicing()
+    pipe.to("cuda")
+
+    return pipe
+
+def unload_pipe_fully(pipe) -> None:
+    try:
+        # pipe.to("cpu")를 추가로 넣어도 되지만 '완전 해제' 목적이면 생략 가능
+        pass
+    finally:
+        del pipe
+        gc.collect()
+        torch.cuda.empty_cache()
+
+
+@app.on_event("startup")
+async def init_once():
+    if app.state.EMIT_LOOP is None:
+        app.state.EMIT_LOOP = asyncio.get_running_loop()
+
+    app.state.model_lock = asyncio.Lock()
+    app.state.pipe = None
+    app.state.video_pipe = None
+
+
 
 def get_db():
     db = SessionLocal()
@@ -51,31 +113,11 @@ class init(BaseModel):
 
 
 
-
 class VideoRequest(BaseModel):
     user_id: str
+    project_id:int
     imagePrompt: str
     videoPrompt: str
-    block_index: Optional[int] = 0  # block_index 추가
-
-class VideoBetweenRequest(BaseModel):
-    user_id: str
-    startImage: str
-    endImage: str
-    prompt: str
-    width: int
-    height: int
-    totalFrames: int
-    fps: int
-    block_index: Optional[int] = 0
-    
-
-
-class ScenarioResponse(BaseModel):
-    status: str
-    scenario: str
-    projectId: int 
-
 
 
 import mimetypes
@@ -83,44 +125,17 @@ import mimetypes
 mimetypes.add_type('application/javascript', '.js')
 mimetypes.add_type('text/css', '.css')
 
-app = FastAPI()
+
 
 app.include_router(api_scenario.router)
+app.include_router(api_image.router)
+app.include_router(api_video.router)
+app.include_router(api_chr_scenario.router)
+app.include_router(api_chr_image.router)
 
 
 
-# 전역 변수로 WebSocket 연결 저장
-active_websockets = {}
 
-# 진행률 전송 함수
-async def send_progress(user_id: str, block_index: int, progress: int):
-    if user_id in active_websockets:
-        try:
-            websocket = active_websockets[user_id]
-            await websocket.send_json({
-                "type": "image_progress",
-                "blockIndex": block_index, 
-                "progress": progress
-            })
-            print(f"📊 진행률 전송: Block {block_index} - {progress}%")
-        except:
-            if user_id in active_websockets:
-                del active_websockets[user_id]
-                print(f"❌ WebSocket 연결 제거: {user_id}")
-
-async def send_video_progress(user_id: str, block_index: int, progress: int):
-    if user_id in active_websockets:
-        try:
-            websocket = active_websockets[user_id]
-            await websocket.send_json({
-                "type": "video_progress",
-                "blockIndex": block_index, 
-                "progress": progress
-            })
-
-        except:
-            if user_id in active_websockets:
-                del active_websockets[user_id]
 
 
 # 예외 디버깅 함수
@@ -136,7 +151,7 @@ async def websocket_endpoint(websocket: WebSocket):
     user_id = websocket.query_params.get("user_id")
     
     # 사용자별 WebSocket 연결 저장
-    active_websockets[user_id] = websocket
+    app.state.active_websockets[user_id] = websocket
     print(f"✅ WebSocket 연결됨: {user_id}")
     
     try:
@@ -146,96 +161,42 @@ async def websocket_endpoint(websocket: WebSocket):
             print(f"📨 받은 메시지: {data}")
     except WebSocketDisconnect:
         # 연결 해제 시 제거
-        if user_id in active_websockets:
-            del active_websockets[user_id]
+        if user_id in app.state.active_websockets:
+            del app.state.active_websockets[user_id]
         print(f"❌ WebSocket 연결 해제: {user_id}")
 
-# frontend 폴더 mount
-# app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")
-# app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets"
-# )
-# # static 파일들 mount
-# app.mount("/temp", StaticFiles(directory=TEMP_DIR), name="temp")
-
-# 1.1 주제생성
-
-    
-
-
-@app.post("/api/generate-video")
-async def generate_video(data: VideoRequest):
-    """클라이언트에서 JSON 데이터를 받아 응답하는 핸들러"""
-    video_filename = data.imagePrompt + '.gif'
-    block_index = data.block_index
-    
-    try:
-        user_id = data.user_id
-        image_filename = data.imagePrompt + '.png'
-        user_folder = os.path.join(TEMP_DIR, user_id)
-        image_path = os.path.abspath(os.path.join(user_folder, image_filename))
-        
-        # 비디오 생성 시작 - 진행률 0%
-        await send_video_progress(data.user_id, block_index, 0)
-        
-        image = load_image(image_path).convert("RGB")
-        generator = torch.manual_seed(33)
-            
-        print(f"📁 Received imagefile: {image_filename}") 
-        
-        # 비디오 생성 과정의 단계별 진행률
-        total_steps = 40  # inference steps
-        
-        # 비디오 콜백 함수 (비디오 파이프라인도 유사하게 작동)
-        def video_step_callback(pipe, step_index, timestep, callback_kwargs):
-            current_step = step_index + 1
-            progress = int(current_step / total_steps * 100)
-            
-            print(f"🎬 Video Step {current_step}/{total_steps} ({progress}%)")
-            
-            # 비동기 작업을 이벤트 루프에 추가
-            loop = asyncio.get_event_loop()
-            loop.create_task(send_video_progress(data.user_id, block_index, progress))
-            
-            return callback_kwargs
-        
- 
-        
-        # 비디오 파일 저장 (주석 해제하면 실제 저장됨)
-        # video_path = os.path.abspath(os.path.join(user_folder, video_filename))
-        # export_to_gif(frames, video_path)
-        
-        print(f"✅ 비디오 생성 완료: {video_filename}")
-        return JSONResponse(content={
-            "videoUrl": video_filename,
-            "status": "success"
-        })
-        
-    except Exception as e:
-        print(f"❌ 비디오 생성 실패: {e}")
-        return JSONResponse(content={
-            "videoUrl": video_filename,
-            "status": "fail",
-            "error": str(e)
-        }, status_code=500)
-    
+#frontend 폴더 mount
+app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")
+app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets"
+)
+# static 파일들 mount
+app.mount("/temp", StaticFiles(directory=TEMP_DIR), name="temp")
 
 
 
 
-
- 
 
 @app.post('/api/init-user')
 def init(user_id:init):
     user_folder = TEMP_DIR / user_id.user_id
-    user_folder.mkdir(parents=True,exist_ok=True)
-    print(f"사용자 폴더 생성: {user_id}")
+    user_folder.mkdir(parents=True,exist_ok=True) 
 
-@app.post('/api/init-user')
-def init(user_id:init):
-    user_folder = os.path.join(TEMP_DIR, user_id.userid)
-    os.makedirs(user_folder, exist_ok=True)
-    print(f"{user_id}")
+    # base_dir 안의 하위 폴더 중 숫자로 된 것만 추출
+    num_folders = [int(p.name) for p in user_folder.iterdir() if p.is_dir() and p.name.isdigit()]
+
+    if not num_folders:
+        project_id=1
+    else:
+        project_id = max(num_folders)+1
+    return JSONResponse(content={
+            "project_id": project_id
+        })
+    
+    
+
+
+
+
 
 @app.get("/api/saved/{user_id}")
 def get_user_texts(user_id: str, db: Session = Depends(get_db)):
@@ -253,12 +214,12 @@ async def validation_exception_handler(request, exc):
     print("🔎 Validation error detail:", exc.errors())   # 콘솔에 상세 출력
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
-# @app.get('/',response_class=HTMLResponse)
-# async def serve_frontend():
-#     print("메인 페이지 실행")
-#     with open(os.path.join(DIST_DIR, "index.html"), encoding="utf-8") as f:
-#         html = f.read()
-#     return HTMLResponse(content=html)
+@app.get('/',response_class=HTMLResponse)
+async def serve_frontend():
+    print("메인 페이지 실행")
+    with open(os.path.join(DIST_DIR, "index.html"), encoding="utf-8") as f:
+        html = f.read()
+    return HTMLResponse(content=html)
 
 @app.get("/api/projects/{user_id}")
 def get_user_projects(user_id: str, db: Session = Depends(get_db)):
@@ -268,19 +229,17 @@ def get_user_projects(user_id: str, db: Session = Depends(get_db)):
         
         # 특정 컬럼만 선택해서 조회 (created_at, updated_at 제외)
         projects = db.query(
-            models.Project.id,
-            models.Project.user_id,
-            models.Project.title
+            models.Scenario
         ).filter(
-            models.Project.user_id == user_id
-        ).order_by(models.Project.id.desc()).all()
+            models.Scenario.user_id == user_id
+        ).order_by(models.Scenario.id.desc()).all()
         
         project_list = []
         for project in projects:
             try:
                 project_list.append({
-                    "projectId": project.id,
-                    "title": project.title or "제목 없음",
+                    "project_id": project.project_id,
+                    "title": project.user_topic_input or "제목 없음",
                     "date": "최근"  # 임시로 고정값 사용
                 })
             except Exception as e:
@@ -306,45 +265,56 @@ def get_user_projects(user_id: str, db: Session = Depends(get_db)):
         }, status_code=500)
     
 
-@app.get("/api/project/{project_id}")
-def get_project(project_id: int, db: Session = Depends(get_db)):
+@app.get("/api/project/{user_id}/{project_id}")
+def get_project(user_id:str,project_id: int, db: Session = Depends(get_db)):
     # 프로젝트 기본 정보
-    project = db.query(models.Project).filter(models.Project.id == project_id).first()
-    if not project:
+    scenario_db = (
+    db.query(models.Scenario)
+      .filter(
+          models.Scenario.user_id == user_id,
+          models.Scenario.project_id == project_id,
+      )
+      .order_by(models.Scenario.id.desc())
+      .first())
+    
+    if not scenario_db:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # 시나리오 1개 가져오기
-    scenario = db.query(models.Scenario).filter(models.Scenario.project_id == project_id).first()
-    scenario_text = scenario.content if scenario else ""
-
     # 이미지/비디오 가져오기
-    images = db.query(models.Image).filter(models.Image.project_id == project_id).all()
-    keyframes = []
-    for img in images:
-        keyframes.append({
-            "prompt": img.prompt,
-            "imageUrl": img.image_path,  # 저장된 경로 사용
-            "actionPrompt": getattr(img, "action_prompt", ""),
-            "videoUrl": getattr(img, "video_path", "")
-        })
-
+    image_db = (
+    db.query(models.Image)
+      .filter(
+          models.Image.user_id == user_id,
+          models.Image.project_id == project_id,
+      ).first())
+    
+    kor_contents=scenario.split_contents(scenario.translate_eng2kor(scenario_db.contents))
+    print(scenario_db.contents)
+    print(kor_contents)
     return {
-        "projectId": project.id,
-        "title": project.title,
-        "scenario": scenario_text,
-        "keyframes": keyframes
+        "title": scenario_db.user_topic_input,
+        "topic": scenario.translate_eng2kor(scenario_db.topic),
+        "description" : scenario.translate_eng2kor(scenario_db.description),
+        "contents":kor_contents,
+        "keyframe_prompt": image_db.image_prompt,
+        "video_prompt" : image_db.video_prompt
     }
 
 #fallback함수 : vue에서 처리할 경로의 요청은 index.html 보냄
-# @app.get("/{full_path:path}", response_class=HTMLResponse)
-# async def fallback(full_path: str):
-#     print("🔄 폴백함수 실행")
-#     if full_path.startswith("ws"):
-#         return HTMLResponse(status_code=404, content="웹소켓은 FastAPI가 처리함")
-#     return FileResponse(os.path.join(DIST_DIR, "index.html"))
-@app.get("/")
-async def root():
-    return {"message": "Hello Backend"}
+@app.get("/{full_path:path}", response_class=HTMLResponse)
+async def fallback(full_path: str):
+    print("🔄 폴백함수 실행")
+    if full_path.startswith("ws"):
+        return HTMLResponse(status_code=404, content="웹소켓은 FastAPI가 처리함")
+    return FileResponse(os.path.join(DIST_DIR, "index.html"))
+# @app.get("/")
+# async def root():
+#     return {"message": "Hello Backend"}
 
 if __name__ == "__main__":
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "server:app",          # 모듈:변수
+        host="0.0.0.0",        # 외부 접속 허용
+        port=8080,             # 포트 번호
+        reload=False            # 코드 수정 시 자동 reload
+    )

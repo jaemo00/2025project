@@ -3,6 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+
 BASE_DIR = pathlib.Path(__file__).resolve().parent  # database.py 파일 위치
 DB_PATH = BASE_DIR / "DB.db"              # backend/DB.db
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"

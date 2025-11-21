@@ -1,98 +1,73 @@
 import { defineStore } from 'pinia'
-import { v4 as uuidv4 } from 'uuid'
+import axios from 'axios'
+import { useRouter } from 'vue-router'
 
 export const useAppStore = defineStore('app', {
   state: () => ({
-    // 기존 상태
-    scenarioPrompt: '',
-    generatedScenario: '',
-    keyframeBlocks: [
-      {
-        text: '',
-        imageUrl: '',
-        videoUrl: '',
-        videoPrompt: '',
-        setup: { width: 640, height: 360 },
-        modelName: '' 
-      },
-    ],
-    finalVideoUrl: '',
-
-    // WebSocket 관련 상태
-    socket: null,
-    socketStatus: '',
-    progressMap: {}, // blockIndex: progress 값 저장용
-    userId: '',
+    user_id: '',
+    project_id: null,
+    scenario: '',
+    keyframes: [], // 각 프롬프트 블록의 정보들
+    characterImage:'',
+    socket: null    // WebSocket 객체 보관
   }),
-
-  persist: {
-    storage: sessionStorage,
-  },
-
   actions: {
-    // 시나리오 초기화
-    resetScenario() {
-      this.scenarioPrompt = ''
-      this.generatedScenario = ''
+    loadProject(data) {
+      this.project_id = data.project_id ? Number(data.project_id) : null
     },
 
-      setUserId(id) {
-    this.userId = id
-  },
+    async ensureProjectId({ title }) {
+      if (this.project_id) return this.project_id
+      if (!this.user_id) throw new Error('로그인이 필요합니다.')
 
-    // 키프레임 초기화
-    resetKeyframes() {
-      this.keyframeBlocks = [
-      {
-        text: '',
-        imageUrl: '',
-        videoUrl: '',
-        videoPrompt: '',
-        setup: { width: 640, height: 360 },
-        modelName: '' 
-      },
-      ]
+      // 새 프로젝트 생성
+      const res = await axios.post('/api/project', {
+        user_id: this.user_id,
+        title: title || 'Untitled'
+      })
+      const pid = Number(res.data?.project_id)
+      if (!pid) throw new Error('프로젝트 생성 실패: project_id 누락')
+      this.project_id = pid
+      return pid
     },
+    connectWebSocket() {
+      if (this.socket) return  // 중복 연결 방지
+      const ws = new WebSocket(`ws://localhost:8000/ws?user_id=${this.user_id}`)
 
-     initWebSocket() {
-  const savedId = localStorage.getItem('userId')
-  if (!this.userId && savedId) {
-    this.userId = savedId
-  }
-
-      // 이미 연결돼 있으면 다시 연결하지 않음
-      if (this.socket && this.socket.readyState <= 1) return
-
-      this.socket = new WebSocket(`ws://192.168.0.5:8000/ws?user_id=${this.userId}`)
-
-      this.socket.onopen = () => {
-        console.log('✅ WebSocket 연결 성공')
-        this.socketStatus = 'connected'
+      ws.onopen = () => {
+        console.log('✅ WebSocket 연결됨')
       }
 
-      this.socket.onclose = () => {
-        console.warn('❌ WebSocket 연결 종료됨')
-        this.socketStatus = 'disconnected'
-      }
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data)
+        if (data.type === 'image_progress') {
+          const block = this.keyframes[data.blockIndex]
+          if (block) block.progress = data.progress
+        }
 
-      this.socket.onerror = (error) => {
-        console.error('⚠️ WebSocket 에러 발생:', error)
-        this.socketStatus = 'error'
-      }
-
-      this.socket.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data)
-
-          // 예: image_progress 라는 타입이 왔을 때
-          if (msg.type === 'image_progress') {
-            const { blockIndex, progress } = msg
-            this.progressMap[blockIndex] = progress
-          }
-        } catch (err) {
-          console.warn('메시지 JSON 파싱 실패:', event.data)
+        if (data.type === 'video_progress') {
+          const block = this.keyframes[data.blockIndex]
+          if (block) block.videoProgress = data.progress
         }
       }
+
+      ws.onclose = () => {
+        console.log('❌ WebSocket 종료')
+        this.socket = null
+      }
+
+      this.socket = ws
+    },
+    sendMessage(message) {
+      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+        this.socket.send(message)
+      }
+    },
+    disconnectWebSocket() {
+      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+        this.socket.close()
+      }
+      this.socket = null
     }
   }
 })

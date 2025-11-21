@@ -1,57 +1,60 @@
 <template>
-  <div class="p-6 min-h-screen bg-white">
-    <div class="p-6 max-w-md mx-auto">
-      <h2 class="text-2xl font-bold mb-4">아이디 입력</h2>
+  <div class="min-h-screen flex flex-col justify-center items-center bg-[#12100E] px-4">
+    <div class="bg-[#1A1816] rounded-xl shadow-xl p-8 max-w-md w-full space-y-6 border border-[#FFB224]/20">
+      <h1 class="text-2xl font-bold text-center text-[#FFB224]">AI 영상 프로젝트 시작</h1>
 
-      <div class="flex gap-2">
-        <input
-          v-model="userId"
-          placeholder="아이디를 입력하세요"
-          class="flex-1 border p-2 rounded"
-        />
-        <button
-          @click="login"
-          class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          로그인
-        </button>
-      </div>
+      <!-- 사용자 ID 입력 -->
+      <input
+        v-model="user_id"
+        type="text"
+        placeholder="아이디를 입력하세요"
+        class="w-full rounded px-4 py-2 bg-[#12100E] text-gray-100 placeholder-gray-400
+               border border-[#FFB224]/30 focus:outline-none focus:ring-2 focus:ring-[#FFB224] focus:border-transparent"
+      />
+
+      <!-- 로그인 -->
+      <button
+        @click="initUser"
+        class="w-full py-2 rounded font-semibold 
+               bg-[#FFB224] text-[#12100E] hover:bg-[#e6a020] 
+               transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        로그인
+      </button>
     </div>
-
-        <ArrowNextButton direction="next" to="/create" class="fixed bottom-6 right-6" />
-        </div>
+  </div>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/appStore'
-import { ref } from 'vue'
 import axios from 'axios'
-import ArrowNextButton from '@/components/ArrowNextButton.vue'
 
+const user_id = ref('')
 const router = useRouter()
 const store = useAppStore()
-const userId = ref('')
 
-async function login() {
-  if (!userId.value.trim()) return
+async function initUser() {
+  if (!user_id.value.trim()) return alert('아이디를 입력해주세요.')
 
-  const trimmedId = userId.value.trim()
-  store.setUserId(trimmedId)
-  localStorage.setItem('userId', trimmedId)
-  console.log(localStorage.getItem('userId'))
   try {
-    await axios.post('/api/init-user', {
-      userid: trimmedId
+    const res = await axios.post('/api/init-user', {
+      user_id: user_id.value.trim()
     })
-    
-    const res = await axios.get(`/api/saved/${userId.value.trim()}`)
-    store.scenarioList = res.data.Scenario[0].Scenario
-    console.log(res.data.Scenario[0].Scenario)
-  } catch (e) {
-    console.error('시나리오 목록 로딩 실패:', e)
-  }
 
-  router.push('/create')
+    const pid = Number(res.data?.project_id)
+    if (!pid) {
+      alert('프로젝트 생성에 실패했습니다.')
+      return
+    }
+
+    store.user_id = user_id.value.trim()
+    store.project_id = pid
+
+    router.push('/scenario')
+  } catch (e) {
+    alert(e?.response?.data?.detail || '초기화 실패')
+  }
 }
 </script>

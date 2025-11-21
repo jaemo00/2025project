@@ -1,60 +1,90 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
-from diffusers import DiffusionPipeline
-import torch
+import torch,gc
+from sqlalchemy import select
+import PIL.Image as Image
+from diffusers.utils import export_to_video, load_image
+import asyncio, anyio
 
+from get_last_frame import get_last_frame
+from api.api_video import combine_video
 import models
-import scenario
+import utils.scenario as scenario
 from database import get_db
-from config import *
+from utils.utils_model import load_video_pipe, unload_pipe_fully
+from utils.config import *
+
 
 router = APIRouter(prefix="/api", tags=["scenario"])
 
+gpu_sem = anyio.Semaphore(1)
 
-
-
-class setup(BaseModel):
-    width: int
-    height: int
 
 class TopicRequest(BaseModel):
     user_id: str 
+    project_id:int
     user_topic_input: str
-    title: str  
+    time: int
+    
 
 class ContentsRequest(BaseModel):
     user_id:str
-    user_topic_input:str
+    project_id:int
     topic:str
     description:str
-    title:str
 
 class Gen_image_promptRequest(BaseModel):
     user_id:str
-    user_topic_input:str
-    topic:str
-    description:str
+    project_id:int
     contents_list:list[str]
-    title:str
 
-class ImageRequest(BaseModel):
-    setup: setup
-    user_id: str
-    prompt: str
-    background: str
-    model: str
-    image_num: str
-    title:str
-    block_index: Optional[int] = 0  # block_index 추가
+class AutoRequest(BaseModel):
+    user_id:str
+    project_id:int
+    user_topic_input:str
+    time : int
+    
 
-@router.post("/get-scenario-info")
+
+# 1.1 토픽생성
+@router.post("/get_scenario_info")
 async def generate_scenario(data: TopicRequest, db: Session = Depends(get_db)):
-  
+    print(f"받은데이터{data.project_id}")
     info_str=scenario.get_scenario_info(data.user_topic_input)
     info=scenario.extract_topic_info(info_str)
+    
+    #DB 저장
+    existing = db.execute(
+            select(models.Scenario)
+            .where(
+                models.Scenario.user_id == data.user_id,
+                models.Scenario.project_id == data.project_id,
+            )
+            .order_by(models.Scenario.id.desc())   # 같은 쌍이 여러 행이면 가장 최근 것 선택
+            .limit(1)
+        ).scalar_one_or_none()
+    if existing is None:
+        db_item = models.Scenario(
+            user_id=data.user_id,
+            project_id=data.project_id,
+            user_topic_input=data.user_topic_input,
+            time=data.time,
+            topic=info["Topic"],
+            description=info["Description"]
+        )
+        db.add(db_item)
+        db.commit()
+        db.refresh(db_item)
+    else:
+        # 2-B) 있으면 수정
+        existing.user_topic_input=data.user_topic_input
+        existing.time=data.time
+        existing.topic=info["Topic"]
+        existing.description=info["Description"]
+    db.commit()
 
     return JSONResponse(content={
         "status": "success",
@@ -66,125 +96,233 @@ async def generate_scenario(data: TopicRequest, db: Session = Depends(get_db)):
 
 # 1.2 내용 생성
 @router.post("/gen_contents")
-async def generate_contents(data: ContentsRequest):
-    contents = scenario.gen_contents(user_topic_input=data.user_topic_input, topic=data.topic, description=data.description)
+async def generate_contents(data: ContentsRequest,db: Session = Depends(get_db)):
+    user_topic_input=models.get_scenario_value(db,data.user_id,data.project_id,"user_topic_input")
+    time=models.get_scenario_value(db,data.user_id,data.project_id,"time")
+    print(f"{user_topic_input},{time}초")
+    contents = scenario.gen_contents(user_topic_input=user_topic_input, topic=scenario.translate_kr2eng(data.topic), description=scenario.translate_kr2eng(data.description),total_beats=int(time/2.5+1))
     kor_contents = scenario.translate_eng2kor(contents)
     background=scenario.gen_background_prompt(contents)
+    db.query(models.Scenario).filter(models.Scenario.user_id == data.user_id,models.Scenario.project_id == data.project_id
+    ).update({"contents":contents,"background":background}, synchronize_session=False)
+    db.commit()
 
     return JSONResponse(content={
         "status": "success",
-        "background": background,
         "contents": scenario.split_contents(contents),
         "kor_contents": scenario.split_contents(kor_contents)
     })
 
 # 1.3 키프레임 프롬프트 생성
-@router.post("gen_image_prompt")
-async def generate_image_prompt(data: Gen_image_promptRequest):
+@router.post("/gen_image_prompt")
+async def generate_image_prompt(data: Gen_image_promptRequest,db: Session = Depends(get_db)):
+    user_topic_input=models.get_scenario_value(db,data.user_id,data.project_id,"user_topic_input")
+    topic=models.get_scenario_value(db,data.user_id,data.project_id,"topic")
+    description=models.get_scenario_value(db,data.user_id,data.project_id,"description")
+   
     contents=""
     for i in range(len(data.contents_list)):
-        contents+=f"#{i+1} {data.contents_list[i]}\n"
+        contents+=f"#{i+1} {scenario.translate_kr2eng(data.contents_list[i])}\n"
+    print(contents)
+
     image_prompt=[]
     for i in range(len(data.contents_list)):
-        image_prompt.append(scenario.gen_image_prompt(data.user_topic_input, topic=data.topic, description=data.description,content=data.contents_list[i], scenario=contents))
+        image_prompt.append(scenario.gen_image_prompt(user_topic_input, topic=topic, description=description,content=scenario.translate_kr2eng(data.contents_list[i]), scenario=contents))
     
+    kor_image_prompt=[]
+    for i in range(len(image_prompt)):
+        kor_image_prompt.append(scenario.translate_eng2kor(image_prompt[i]))
+
+            # DB 저장
+    existing = db.execute(
+        select(models.Image)
+        .where(
+            models.Image.user_id == data.user_id,
+            models.Image.project_id == data.project_id,
+        )
+        .order_by(models.Image.id.desc())   # 같은 쌍이 여러 행이면 가장 최근 것 선택
+        .limit(1)
+    ).scalar_one_or_none()
+
+    if existing is None:
+        # 2-A) 없으면 새로 생성
+        db_item = models.Image(
+            user_id=data.user_id,
+            project_id=data.project_id,
+            image_prompt=image_prompt,     # 처음 프롬프트로 리스트 생성
+        )
+        db.add(db_item)
+        # db.begin() 컨텍스트가 끝날 때 자동 commit
+    else:
+        # 2-B) 있으면 수정
+        existing.image_prompt=image_prompt
+    db.commit()
+        
     return JSONResponse(content={
         "status": "success",
-        "imgage_prompt": image_prompt
+        "image_prompt": image_prompt,
+        "kor_image_prompt": kor_image_prompt
     })
 
 
-@router.post("/generate-first-image")
-async def generate_first_image(data: ImageRequest, db: Session = Depends(get_db)):
-    image_filename = data.image_num + '.png'
-    image_folder= TEMP_DIR / data.user_id / data.title / "keyframe"
-    image_folder.mkdir(parents=True,exist_ok=True)
-    image_path =  image_folder/image_filename
-    block_index = data.block_index
+@router.post("/auto")
+async def ocastrater(request: Request,data:AutoRequest,db: Session = Depends(get_db)):
+    active_websockets=request.app.state.active_websockets
+    # 1단계 
+    info=scenario.extract_topic_info(scenario.get_scenario_info(data.user_topic_input))
+    print("1단계 완료 ")
+    await active_websockets[data.user_id].send_json({
+        "status": "info success",
+        "topic" : info["Topic"],
+        "kor_topic": scenario.translate_eng2kor(info["Topic"]),
+        "description": info["Description"],
+        "kor_description": scenario.translate_eng2kor(info["Description"])}
+    )
+    await asyncio.sleep(0)
+    # 2단계 
+    contents=scenario.gen_contents(data.user_topic_input,info["Topic"],info["Description"],int(data.time/2.5+1))
+    contents_list=scenario.split_contents(contents)
+    kor_contents = scenario.translate_eng2kor(contents)
+    background=scenario.gen_background_prompt(contents)
+    print(f"2단계 완료 - contetnts: {contents_list}")
+    await active_websockets[data.user_id].send_json({
+        "status": "content success",
+        "contents": scenario.split_contents(contents),
+        "kor_contents": scenario.split_contents(kor_contents)
+    })
+    await asyncio.sleep(0)
 
-    try:
-        if data.model=="dalle-3":
-            scenario.gen_dalle_first(data.prompt,data.background,image_path)
-
-
-        else:
-            pipe = DiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=torch.float16, use_safetensors=True, variant="fp16")
-            pipe.to("cuda")
-            prompt = "An astronaut riding a green horse"
-            image = pipe(prompt=prompt,
-            negative_prompt="(asymmetry, worst quality, low quality, illustration, 3d, 2d, painting, cartoons, sketch,animation), Beige,open mouth,gray scale,watermark, text, logo, signature" ,
-            num_inference_steps=28,
-            guidance_scale=5.5,  # 베이스 단독일 때 살짝 높여도 됨
-            height=data.setup.height,     
-            width=data.setup.width ).images[0]
-
-            image.save(image_path)
-        # DB 저장
-        # db_item = models.Image(
-        #     user_id=data.user_id,
-        #     prompt=data.prompt,
-        #     model=data.model,
-        #     width=data.setup.width,
-        #     height=data.setup.height,
-        # )
-        # db.add(db_item)
-        # db.commit()
-        # db.refresh(db_item)
-
-        print(f"✅ 이미지 생성 완료: {image_filename}")
-        return JSONResponse(content={
-            "imageUrl": image_path,
-            "status": "success"
-        })
-
-    except Exception as e:
-        print(f"❌ 이미지 생성 실패: {e}")
-        return JSONResponse(content={
-            "imageUrl": f"temp/{data.user_id}/{image_filename}",
-            "status": "fail",
-            "error": str(e)
-        }, status_code=500)
-
-
-
-    #연속되는 이미지 생성
-@router.post("/generate-series-image")
-async def generate_series_image(data: ImageRequest, db: Session = Depends(get_db)):
-    image_filename = data.image_num + '.png'
-    image_folder= TEMP_DIR / data.user_id / data.title / "keyframe"
-    image_folder.mkdir(parents=True,exist_ok=True)
-    image_path =  image_folder/image_filename
-    previous_img=image_folder / str(int(data.image_num)-1)
-    block_index = data.block_index
-
-    try:
+    # 3단계 키프레임 프롬프트 생성
+    image_prompt=[]
+    for i in range(len(contents_list)):
+        image_prompt.append(scenario.gen_image_prompt(data.user_topic_input, topic=info["Topic"], description=info["Description"],content=contents_list[i], scenario=contents))
     
-        scenario.gen_dalle_series(data.prompt,data.background,previous_img,image_path)
+    kor_image_prompt=[]
+    for i in range(len(image_prompt)):
+        kor_image_prompt.append(scenario.translate_eng2kor(image_prompt[i]))
 
-        # DB 저장
-        # db_item = models.Image(
-        #     user_id=data.user_id,
-        #     prompt=data.prompt,
-        #     model=data.model,
-        #     width=data.setup.width,
-        #     height=data.setup.height,
-        # )
-        # db.add(db_item)
-        # db.commit()
-        # db.refresh(db_item)
+    await active_websockets[data.user_id].send_json({
+        "status": "img prompt success",
+        "image_prompt": image_prompt,
+        "kor_image_prompt": kor_image_prompt
+    })
+    await asyncio.sleep(0)
+
+    # 4단계 이미지 생성
+    image_dir=TEMP_DIR/data.user_id/str(data.project_id)/"keyframe"
+    image_dir.mkdir(parents=True,exist_ok=True)
+    # await anyio.to_thread.run_sync(scenario.gen_dalle_first, image_prompt[0], background, str(image_dir / "1.png"))
+    # await active_websockets[data.user_id].send_json({   
+    #         "staus": "first img gen success",
+    #         "imageUrl": str(image_dir/"1.png")})
+    # for idx in range(1, len(image_prompt)):
+    #     await anyio.to_thread.run_sync(scenario.gen_dalle_series,image_prompt[idx],background,f"{image_dir}/{str(idx)}.png",f"{image_dir}/{str(idx+1)}.png")
+    #     await active_websockets[data.user_id].send_json({
+    #         "staus": f"{str(idx+1)} img gen success",
+    #         "imageUrl": f"{image_dir}/{str(idx+1)}.png"
+    #     })
+    #     await asyncio.sleep(0)   
 
 
+    # 5단계 동영상 프롬프트 생성
+    video_prompt = []
+    for i in range(0,len(contents_list)-2,2):
+        video_prompt.append(scenario.gen_video_prompt(data.user_topic_input, topic=info["Topic"], description=info["Description"], content=contents,
+        background_prompt=background,current_content=contents_list[i],middle_content=contents_list[i+1],next_content=contents_list[i+2], first_prompt=image_prompt[i],middle_prompt=image_prompt[i+1],last_prompt=image_prompt[i+2]))
+    kor_video_prompt=[]
+    for i in range(len(video_prompt)):
+        kor_video_prompt.append(scenario.translate_eng2kor(video_prompt[i])) 
+    await active_websockets[data.user_id].send_json({
+        "status": "video prompt success",
+        "video_prompt": video_prompt,
+        "kor_video_prompt": kor_video_prompt
+    })
+    await asyncio.sleep(0)
 
-        print(f"✅ 이미지 생성 완료: {image_filename}")
-        return JSONResponse(content={
-            "imageUrl": image_path,
-            "status": "success"
+    #6단계 동영상 생성
+    async with request.app.state.model_lock:
+        if request.app.state.pipe is not None:
+            p = request.app.state.pipe
+            request.app.state.pipe = None
+            unload_pipe_fully(p)
+
+    async with request.app.state.model_lock:
+        if request.app.state.video_pipe is None:
+            request.app.state.video_pipe = load_video_pipe()
+
+    def prepare_video_and_mask(first_img: Image.Image, middle_img:Image.Image, last_img: Image.Image,
+                            height: int, width: int, num_frames: int):
+        assert num_frames >= 2, "num_frames must be >= 2"
+        first_img = first_img.resize((width, height))
+        middle_img = middle_img.resize((width, height))
+        last_img  = last_img.resize((width, height))
+        frames = [first_img]
+        frames += [Image.new("RGB", (width, height), (128,128,128)) for _ in range(num_frames - 2)]
+        frames.append(last_img)
+        frames[num_frames//2]=middle_img
+        mask_black = Image.new("L", (width, height), 0)
+        mask_white = Image.new("L", (width, height), 255)
+        mask = [mask_black] + [ mask_white for _ in range(num_frames - 2)] + [mask_black]
+        mask[num_frames//2] = mask_black
+        return frames, mask
+    
+    extract_folder= image_dir / "extract"
+    video_folder= TEMP_DIR / data.user_id / str(data.project_id) / "video"
+    extract_folder.mkdir(parents=True,exist_ok=True)
+    video_folder.mkdir(parents=True,exist_ok=True)
+    
+    for i in range(len(video_prompt)):
+
+        output_path=video_folder / f"{str(i+1)}.mp4"
+
+        negative_prompt = "blurred details, Bright tones, worst quality, low quality, incomplete, ugly"
+        if i==0:
+            first_frame = load_image(str(image_dir / f"{str(i+1)}.png"))
+            middle_frame = load_image(str(image_dir / f"{str(i+2)}.png"))
+            last_frame = load_image(str(image_dir / f"{str(i+3)}.png"))
+        else:
+            first_frame = load_image(str(extract_folder / f"{str(i+1)}_start.png"))
+            middle_frame = load_image(str(image_dir / f"{str(i+2)}.png"))
+            last_frame = load_image(str(image_dir / f"{str(i+3)}.png"))
+
+        video, mask = prepare_video_and_mask(first_img=first_frame,middle_img=middle_frame, last_img=last_frame, height=720, width=720, num_frames=81)
+
+        async with gpu_sem:
+            def run_pipe_and_export():
+                out = request.app.state.video_pipe(
+                    video=video,
+                    mask=mask,
+                    prompt=video_prompt[i],
+                    negative_prompt=negative_prompt,
+                    height=720, width=720,
+                    num_frames=81,
+                    num_inference_steps=50,
+                    guidance_scale=5.0,
+                    generator=torch.Generator().manual_seed(42),
+                ).frames[0]
+                export_to_video(out, str(output_path), fps=16)
+                get_last_frame(video_path=str(output_path), save_path=str(extract_folder), i=i+2)
+                gc.collect(); torch.cuda.empty_cache()
+
+            await anyio.to_thread.run_sync(run_pipe_and_export)
+
+        await active_websockets[data.user_id].send_json({
+            "status": f"{str(i+1)} video gen success",
+            "video_dir": str(output_path),
         })
+        await asyncio.sleep(0.01)
 
-    except Exception as e:
-        print(f"❌ 이미지 생성 실패: {e}")
-        return JSONResponse(content={
-            "imageUrl": f"temp/{data.user_id}/{image_filename}",
-            "status": "fail",
-            "error": str(e)
-        }, status_code=500)
+    
+    #7단계 동영상 병합
+    combine_video(video_folder)
+    return JSONResponse(content={
+        "status": "ALL success",
+        "final_video": str(video_folder/"final_video.mp4")
+    })
+
+
+
+
+
+
+
