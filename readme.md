@@ -3,7 +3,7 @@
 *(Automated Video Production Platform Using Open-Source Generative AI Models)*
 
 ---
-
+<br>
 ##  프로젝트 개요
 
 이 프로젝트는 **Stable Diffusion XL**, **DALL·E 3**, **WAN2.1 VACE** 등의 생성형 AI 모델을 결합하여  
@@ -15,7 +15,7 @@ LangChain 템플릿을 통해 **키프레임 및 영상용 프롬프트를 자�
 >  목표: 비전문가도 AI 모델을 직접 다루지 않고, 텍스트만으로 자연스러운 영상 콘텐츠를 생성할 수 있는 자동화 플랫폼을 만드는 것
 
 ---
-
+<br><br>
 ##  시스템 구조
 
 사용자 입력 (텍스트)<br>
@@ -29,7 +29,7 @@ Stable Diffusion / DALL·E 3 → 키프레임 이미지 생성<br>
 WAN2.1 VACE → 5초 단위 영상 클립 생성<br>
        ↓<br>
 클립 연결 및 영상 출력<br>
-
+<br><br>
 **주요 기능**
 1. 시나리오 자동 생성
    
@@ -66,7 +66,7 @@ SQLAlchemy ORM 기반 SQLite 저장 구조
 
 사용자별 프로젝트 ID, 시나리오, 이미지/영상 경로 관리
 
-
+<br><br>
 **시연영상** : https://www.youtube.com/watch?v=t62Wdzw9qq4
 
 로그인 페이지
@@ -83,15 +83,16 @@ SQLAlchemy ORM 기반 SQLite 저장 구조
 
 비디오 생성 페이지
 ![UI](demo/video.png)
-
+<br>
 **기술스택**
 | 분류 | 기술 |
 |------|------|
-| 언어 | Python, C, C++ |
+|Infra / Dev|Python 3.10+, Node.js 18+, Git|
 | 프론트엔드 | Vue.js, HTML, CSS, JavaScript |
 | 백엔드 | FastAPI, WebSocket |
-| AI 모델 흐름 | diffusers, WAN2.1 VACE, DALL·E 3 |
+| AI Models | diffusers, WAN2.1 VACE, DALL·E 3 |
 | DB | SQLAlchemy (SQLite) |
+
 
 
 
