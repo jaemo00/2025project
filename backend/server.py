@@ -136,8 +136,6 @@ app.include_router(api_chr_image.router)
 
 
 
-
-
 # 예외 디버깅 함수
 logger = logging.getLogger("app")
 def dump_exc(prefix: str, e: Exception):
@@ -287,15 +285,16 @@ def get_project(user_id:str,project_id: int, db: Session = Depends(get_db)):
           models.Image.user_id == user_id,
           models.Image.project_id == project_id,
       ).first())
-    
-    kor_contents=scenario.split_contents(scenario.translate_eng2kor(scenario_db.contents))
-    print(scenario_db.contents)
-    print(kor_contents)
+    kor_contents=scenario.translate_eng2kor(scenario_db.contents)
+    kor_contents_ar=scenario.split_contents(kor_contents)
+    print(f"원본 : {scenario_db.contents}")
+    print(f"한글 : {kor_contents}")
+    print(f"한글배열 : {kor_contents_ar}")
     return {
         "title": scenario_db.user_topic_input,
         "topic": scenario.translate_eng2kor(scenario_db.topic),
         "description" : scenario.translate_eng2kor(scenario_db.description),
-        "contents":kor_contents,
+        "contents":kor_contents_ar,
         "keyframe_prompt": image_db.image_prompt,
         "video_prompt" : image_db.video_prompt
     }

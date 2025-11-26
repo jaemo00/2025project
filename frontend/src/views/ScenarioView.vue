@@ -221,16 +221,16 @@
             class="px-4 py-2 rounded font-semibold bg-[#FFB224] text-[#12100E] 
                    hover:bg-[#e6a020] disabled:opacity-50 transition-colors"
           >
-            <span v-if="scenesLoading">씬 생성 중…</span>
+            <span v-if="scenesLoading">컷 생성 중…</span>
             <span v-else>시나리오 생성하기</span>
           </button>
         </div>
       </div>
 
-      <!-- 5) 번호별 씬 편집 -->
+      <!-- 5) 번호별 컷 편집 -->
       <div v-if="scenesVisible" class="w-full bg-[#1A1816] rounded-xl shadow-xl p-6 space-y-4 border border-[#FFB224]/20">
-        <h2 class="text-xl font-bold text-[#FFB224]">씬 편집</h2>
-        <p class="text-sm text-gray-400">* 마음에 들지 않는 씬은 자유롭게 수정하세요.</p>
+        <h2 class="text-xl font-bold text-[#FFB224]">컷 편집</h2>
+        <p class="text-sm text-gray-400">* 마음에 들지 않는 컷은 자유롭게 수정하세요.</p>
 
         <div class="space-y-4 max-h-[60vh] overflow-auto pr-1">
           <div
@@ -264,7 +264,7 @@
             class="px-4 py-2 rounded font-semibold bg-[#FFB224] text-[#12100E] 
                    hover:bg-[#e6a020] disabled:opacity-50 transition-colors"
           >
-            이 씬들로 확정
+            이 컷들로 확정
           </button>
         </div>
       </div>
@@ -367,7 +367,22 @@
                 <template v-else>
                   <div class="text-sm text-gray-500">아직 이미지가 없습니다.</div>
                 </template>
-              </div>
+                <!-- ✅ 진행률 바 -->
+                <div
+                  v-if="kf.imgLoading &&kf.model==='sdxl'"
+                  class="mt-4"
+                >
+                  <div class="flex justify-between text-xs text-gray-400 mb-1">
+                    <span>키프레임 생성 진행률</span>
+                    <span>{{ imgProgress }}%</span>
+                  </div>
+                  <div class="w-full h-2 bg-gray-800 rounded overflow-hidden">
+                    <div
+                      class="h-2 bg-[#FFB224] transition-all"
+                      :style="{ width: imgProgress + '%' }"
+                    ></div>
+                  </div>
+                </div>
             </div>
           </div>
         </div>
@@ -422,6 +437,7 @@
       </div>
     </div>
   </div>
+</div>
 </template>
 
 <script setup>
@@ -456,6 +472,7 @@ const draft = ref({
   main_character_description: ''
 })
 
+const imgProgress = computed(() => Number(store.imgProgress || 0))
 const contents = ref([]) // [{ no, text }]
 
 /* with-char: 캐릭터 이미지 프롬프트 패널 */
@@ -465,7 +482,7 @@ const charImgUrl = ref('')
 const charPromptLoading = ref(false)
 const charPromptDirty = ref(false)
 const charImgLoading = ref(false)
-const charModel = ref('sdxl') 
+const charModel = ref('dalle-3') 
 const charWidth = ref(1024)
 const charHeight = ref(1024)
 
@@ -516,38 +533,8 @@ function normalizeImageUrl(p) {
 
 
 
-/* -------------------------
-   project_id 보장/복구/보존
-------------------------- */
-async function localEnsureProjectId({ title }) {
-  if (store.project_id) return
-  if (!store.user_id) throw new Error('로그인이 필요합니다.')
-  const res = await axios.post('/api/project', { user_id: store.user_id, title })
-  const pid = res.data?.project_id ?? res.data?.id
-  if (!pid) throw new Error('프로젝트 ID를 생성/확인하지 못했습니다.')
-  store.project_id = Number(pid)
-}
 
-async function getProjectIdOrThrow(titleForCreate = '') {
-  let pid = Number(
-    (store.project_id ?? null) ??
-    (scenario.value?.projectId ?? null) ??
-    (sessionStorage.getItem('project_id') ?? null)
-  )
-  if (!Number.isInteger(pid) || pid <= 0) {
-    const title = titleForCreate || draft.value.kor_topic || user_input.value || 'Untitled'
-    if (store.ensureProjectId) {
-      await store.ensureProjectId({ title })
-      pid = Number(store.project_id)
-    }
-    if (!Number.isInteger(pid) || pid <= 0) {
-      await localEnsureProjectId({ title })
-      pid = Number(store.project_id)
-    }
-  }
-  if (!Number.isInteger(pid) || pid <= 0) throw new Error('유효한 project_id를 확보하지 못했습니다.')
-  return pid
-}
+
 
 onMounted(() => {
   if (store.scenario) {
@@ -602,13 +589,7 @@ async function fetchScenarioDraft() {
   const p = user_input.value?.trim()
   if (!p) { alert('주제를 입력하세요.'); return }
 
-  let projectId
-  try {
-    projectId = await getProjectIdOrThrow(p)
-  } catch (e) {
-    alert(e?.message || '프로젝트 생성에 실패했습니다.')
-    return
-  }
+  let projectId=store.project_id
 
   draftLoading.value = true
   draftVisible.value = false
@@ -632,7 +613,7 @@ async function fetchScenarioDraft() {
         topic: data.topic ?? '',
         kor_topic: data.kor_topic ?? '',
         description: data.description ?? '',
-        kor_description: data.description ?? '',
+        kor_description: data.kor_description ?? '',
         main_character: data.main_character ?? '',
         main_character_description: data.main_character_description ?? ''
       }
@@ -685,7 +666,7 @@ async function fetchCharacterPrompt(force = false) {
   if (charPromptLoading.value) return
   charPromptLoading.value = true
   try {
-    const projectId = await getProjectIdOrThrow(userTopic)
+    const projectId = store.project_id
     const res = await axios.post(API_GEN_CHAR_PROMPT, {
       user_id: store.user_id,
       project_id: projectId,
@@ -714,7 +695,7 @@ async function generateCharacterImage() {
 
   try {
     charImgLoading.value = true
-    const projectId = await getProjectIdOrThrow(draft.value.topic || user_input.value)
+    const projectId = store.project_id
 
     const payload = {
       user_id: store.user_id,
@@ -758,11 +739,11 @@ async function generateScenario() {
   scenesVisible.value = false
   keyframesVisible.value = false
   try {
-    const projectId = await getProjectIdOrThrow(draft.value.topic || user_input.value)
+    const projectId = store.project_id
     const url = mode.value === 'with-char' ? '/api/chr_gen_contents' : '/api/gen_contents'
     const payload = mode.value === 'with-char' ? {
-      main_character: draft.value.main_character ?? '',
-      main_character_description: draft.value.main_character_description ?? '',
+      character: draft.value.main_character ?? '',
+      character_description: draft.value.main_character_description ?? '',
       topic: draft.value.kor_topic,
       description: draft.value.kor_description,
       user_id: store.user_id,
@@ -783,7 +764,7 @@ async function generateScenario() {
     contents.value = arr
     scenesVisible.value = true
   } catch (e) {
-    showError(e, '씬 생성 실패')
+    showError(e, '컷 생성 실패')
   } finally {
     scenesLoading.value = false
   }
@@ -795,7 +776,7 @@ async function generateScenario() {
 async function confirmScenario() {
   finalizing.value = true
   try {
-    const projectId = await getProjectIdOrThrow(draft.value.topic || user_input.value)
+    const projectId = store.project_id
 
     scenario.value = {
       projectId,
@@ -828,7 +809,7 @@ async function confirmScenario() {
       prompt: '',
       imageUrl: null,
       imgLoading: false,
-      model: 'sdxl',
+      model: 'dalle-3',
       width: 1024,
       height: 1024,
       seriesIndex: 0
@@ -849,12 +830,12 @@ async function confirmScenario() {
 ------------------------- */
 async function generateAllKeyframePrompts() {
   if (!store.user_id) { alert('로그인이 필요합니다.'); return }
-  if (!contents.value.length) { alert('씬이 없습니다.'); return }
+  if (!contents.value.length) { alert('컷이 없습니다.'); return }
   if (keyframesLoading.value) return
 
   keyframesLoading.value = true
   try {
-    const projectId = await getProjectIdOrThrow(draft.value.topic || user_input.value)
+    const projectId = store.project_id
     keyframePrompts.value = keyframePrompts.value.map(k => ({ ...k, imgLoading: false }))
 
     const contents_list = keyframePrompts.value.map(kf => kf.content)
@@ -887,6 +868,7 @@ function isPrevCutReady(cutNo) {
 }
 
 async function generateKeyframeImage(idx) {
+  store.imgProgress = 0
   const kf = keyframePrompts.value[idx]; if (!kf) return
   if (!store.user_id) { alert('로그인이 필요합니다.'); return }
   const prompt = (kf.prompt || '').trim()
@@ -897,7 +879,7 @@ async function generateKeyframeImage(idx) {
   }
   try {
     kf.imgLoading = true
-    const projectId = await getProjectIdOrThrow(draft.value.topic || user_input.value)
+    const projectId = store.project_id
     const image_num = String(kf.no)
     const endpoint = (kf.no === 1) ? '/api/generate_first_image' : '/api/generate_series_image'
     const payload = {
@@ -923,6 +905,7 @@ async function generateKeyframeImage(idx) {
 }
 
 async function regenKeyframeImage(idx) {
+  store.imgProgress = 0
   const kf = keyframePrompts.value[idx]; if (!kf) return
   if (!store.user_id) { alert('로그인이 필요합니다.'); return }
   if (kf.no > 1 && !isPrevCutReady(kf.no)) {
@@ -933,7 +916,7 @@ async function regenKeyframeImage(idx) {
   if (!prompt) { alert('프롬프트를 입력하거나 생성하세요.'); return }
   try {
     kf.imgLoading = true
-    const projectId = await getProjectIdOrThrow(draft.value.topic || user_input.value)
+    const projectId = store.project_id
     const image_num = String(kf.no)
     const endpoint = (kf.no === 1) ? '/api/generate_first_image' : '/api/generate_series_image'
     const payload = {
@@ -1013,7 +996,7 @@ async function fetchProjects() {
   keyframesVisible.value = false
   if (!store.user_id) { alert('로그인이 필요합니다.'); return }
   try {
-    const projectId = await getProjectIdOrThrow(user_input.value)
+    const projectId = store.project_id
     void projectId
     const res = await axios.get(`/api/projects/${store.user_id}`)
     projects.value = res.data.projects || []
@@ -1053,7 +1036,7 @@ async function enterProject(projectId) {
       prompt: res.data.keyframe_prompt[i]??'',
       imageUrl: `/temp/${store.user_id}/${projectId}/keyframe/${i+1}.png`,
       imgLoading: false,
-      model: 'sdxl',
+      model: 'dalle-3',
       width: 1024,
       height: 1024,
       seriesIndex: 0
@@ -1063,9 +1046,9 @@ async function enterProject(projectId) {
       durationSec.value = Number(res.data.scenario.info.timeSec) || durationSec.value
     }
 
-    if (!store.project_id) {
-      store.project_id = id
-    }
+    store.project_id = id
+    console.log('불러온 프로젝트 아이디', store.project_id);
+    
   } catch (e) {
     showError(e, '프로젝트 불러오기 실패');
   }

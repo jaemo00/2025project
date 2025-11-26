@@ -9,7 +9,7 @@
         <section class="bg-[#12100E]/60 rounded-lg border border-[#FFB224]/20 p-4">
           <div class="flex items-center justify-between mb-3">
             <h2 class="text-lg font-semibold text-[#FFB224]">
-              씬 {{ activeCard + 1 }} · 비디오 프롬프트
+              컷 {{ activeCard + 1 }} · 비디오 프롬프트
             </h2>
             <button
               class="px-3 py-1.5 rounded font-semibold bg-transparent text-[#FFB224] border border-[#FFB224]/60 hover:bg-[#FFB224]/10"
@@ -66,7 +66,7 @@
               :class="i === activeCard ? 'border-[#FFB224] ring-1 ring-[#FFB224]/60' : 'border-[#FFB224]/20 hover:border-[#FFB224]/40'"
               @click="activeCard = i"
             >
-              <div class="text-sm font-semibold text-[#FFB224] mb-2">카드 {{ i + 1 }}</div>
+              <div class="text-sm font-semibold text-[#FFB224] mb-2">컷 {{ i + 1 }}</div>
               <div class="grid grid-cols-3 gap-2">
                 <div v-for="(img, j) in card.images" :key="j" class="flex flex-col gap-1">
                   <div class="text-[11px] text-gray-400 text-center">
@@ -99,12 +99,29 @@
             <div class="text-sm text-gray-300 mb-2">생성 영상</div>
             <div class="aspect-video bg-black/60 rounded flex items-center justify-center">
               <video
-                v-if="videoUrl"
-                :src="videoUrl"
+                v-if="currentVideoUrl"
+                :src="currentVideoUrl"
                 class="w-full h-full"
                 controls
               ></video>
               <div v-else class="text-sm text-gray-500">아직 생성된 영상이 없습니다.</div>
+            </div>
+
+            <!-- ✅ 진행률 바 -->
+            <div
+              v-if="videoLoading || (videoProgress > 0 && videoProgress < 100)"
+              class="mt-4"
+            >
+              <div class="flex justify-between text-xs text-gray-400 mb-1">
+                <span>비디오 생성 진행률</span>
+                <span>{{ videoProgress }}%</span>
+              </div>
+              <div class="w-full h-2 bg-gray-800 rounded overflow-hidden">
+                <div
+                  class="h-2 bg-[#FFB224] transition-all"
+                  :style="{ width: videoProgress + '%' }"
+                ></div>
+              </div>
             </div>
           </div>
 
@@ -118,14 +135,27 @@
             </button>
             <button
               class="px-4 py-2 rounded font-semibold bg-[#FFB224] text-[#12100E] hover:bg-[#e6a020]"
-              :disabled="!videoUrl"
-              @click="confirmVideo"
+              @click="combine"
             >
-              확정
+              최종영상생성
             </button>
           </div>
         </div>
       </section>
+
+      <!-- 최종생성영상 -->
+    <section
+      v-if="final_video_url"
+      class="mt-8 bg-[#12100E]/60 rounded-lg border border-[#FFB224]/20 p-5"
+      >
+      <h2 class="text-lg font-semibold text-[#FFB224] mb-3">
+        최종 생성 영상
+      </h2>
+      <div class="aspect-video bg-black/60 rounded flex items-center justify-center">
+        <video :src="final_video_url" class="w-full h-full" controls></video>
+      </div>
+    </section>
+
     </div>
   </div>
 </template>
@@ -159,7 +189,14 @@ const videoPromptEng = computed({
   set: v   => videoPromptEngList.value[activeCard.value] = String(v ?? '')
 })
 
-const videoUrl = ref('')
+const videoUrls = ref([])
+const final_video_url=ref('')
+
+
+const videoProgress = computed(() => Number(store.videoProgress || 0))
+const currentVideoUrl = computed(() =>
+  String(videoUrls.value[activeCard.value] || '')
+)
 
 /** 유틸: 이미지 경로 정규화 */
 function normalizeUrl(p) {
@@ -278,40 +315,43 @@ async function fetchVideoPrompt() {
 async function generateVideo() {
   if (!canGenerateVideo.value) return
   videoLoading.value = true
+  store.videoProgress = 0
   try {
     const pid = store.project_id
     const w = windows.value[activeCard.value]
     if (!w) throw new Error('윈도우가 없습니다.')
 
-    const cardIndex = activeCard.value + 1
+    const cardIndex = activeCard.value
     // 시작 컷의 해상도로 사용(없으면 기본)
-    const firstKf = (store.keyframePrompts || []).find(k => k.no === w.start)
-    const width  = firstKf?.width  ?? 1024
-    const height = firstKf?.height ?? 1024
+    const width  =  720
+    const height =  720
 
     // 프레임/초 계산(카드 수 기준으로 대략 분할)
-    const fps = 12
-    const totalSec = Number(store.scenario?.info?.timeSec || 10)
-    const perCardSec = Math.max(1, Math.round(totalSec / Math.max(1, windows.value.length)))
-    const num_frame = Math.max(4, fps * perCardSec)
+    const fps = 16
+    const num_frame = 77
 
     const payload = {
       user_id: store.user_id,
       project_id: pid,
       prompt: String(videoPromptEng.value || '').trim(), // 백엔드가 prompt로 받음
       height, width, num_frame, fps,
-      cut_num: String(w.start), // 시작 컷 기준
+      cut_num: String(activeCard.value + 1)
     }
 
     const res = await axios.post('/api/gen_video', payload)
     const url = normalizeUrl(res.data?.video_dir || res.data?.videoUrl || res.data?.url)
     if (url) {
-      videoUrl.value = url
-      // 보존
+      // 기존: videoUrls.value = url   ❌
+      const next = [...videoUrls.value]   // 기존 배열 복사
+      next[cardIndex] = url               // 카드 인덱스 위치에 저장
+      videoUrls.value = next              // 새 배열로 교체(반응성 유지)
+
       if (!store.video) store.video = {}
-      store.video.url = url
-      store.video.prompt_eng = String(videoPromptEng.value || '').trim()
-      store.video.cut_num = string(cardIndex)
+      store.video[cardIndex + 1] = {
+        url,
+        prompt_eng: String(videoPromptEng.value || '').trim(),
+        cut_num: cardIndex + 1
+      }
     }
   } catch (e) {
     console.error(e)
@@ -322,8 +362,10 @@ async function generateVideo() {
 }
 
 /** 확정 → 다음 단계(필요한 경로로 변경 가능) */
-function confirmVideo() {
-  router.push('/finalize')
+async function combine() {
+  const res=await axios.post('/api/combine',{ user_id: store.user_id, project_id: store.project_id })
+  final_video_url.value=normalizeUrl(res.data.final_video)
+
 }
 
 /** 초기 진입 가드 & 프롬프트 선호출 */
@@ -333,10 +375,17 @@ onMounted(async () => {
     router.push('/')
     return
   }
+
+  if (!store.socket) {
+    store.connectWebSocket()
+  }
+
   if (!store.scenario || !(store.keyframePrompts || []).some(k => k?.imageUrl)) {
     console.warn('scenario or keyframe images missing')
   }
   await fetchVideoPrompt()
+
+  
 })
 </script>
 

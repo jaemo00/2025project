@@ -4,7 +4,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '../views/LoginView.vue'
 import ScenarioView from '../views/ScenarioView.vue'
 import KeyframeView from '../views/KeyframeView.vue'
-import FinalVideoView from '../views/FinalVideoView.vue'
 
 const routes = [
   {
@@ -25,11 +24,6 @@ const routes = [
     path: '/keyframes',
     name: 'Keyframes',
     component: KeyframeView,
-  },
-  {
-    path: '/final',
-    name: 'FinalVideo',
-    component: FinalVideoView,
   },
 ]
 

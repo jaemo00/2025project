@@ -158,6 +158,8 @@ async def gen_video(data:VideoRequest,request:Request,db: Session = Depends(get_
     output_path=video_folder / f"{data.cut_num}.mp4"
 
     negative_prompt = "blurred details, Bright tones, worst quality, low quality, incomplete, ugly"
+    print(f"받은 컷: {data.cut_num}")
+    print(f"프레임:{data.num_frame}, 해상도: {data.width}x{data.height}")
     if data.cut_num=="1":
         first_frame = load_image(str(image_folder / f"{data.cut_num}.png"))
         middle_frame = load_image(str(image_folder / f"{str(int(data.cut_num)+1)}.png"))
@@ -171,7 +173,7 @@ async def gen_video(data:VideoRequest,request:Request,db: Session = Depends(get_
     video, mask = prepare_video_and_mask(first_img=first_frame,middle_img=middle_frame, last_img=last_frame, height=data.height, width=data.width, num_frames=data.num_frame)
 
     
-    await request.app.state.active_websockets[data.user_id].send_json({"progress":0})
+    await request.app.state.active_websockets[data.user_id].send_json({"type":"video_progress","progress":0})
 
     total_steps=50
     def step_callback(self,step: int, timestep: int, callback_kwargs: dict):
@@ -180,7 +182,7 @@ async def gen_video(data:VideoRequest,request:Request,db: Session = Depends(get_
         progress = int(current_step / total * 100)
         request.app.state.EMIT_LOOP.call_soon_threadsafe(
         asyncio.create_task,
-        request.app.state.active_websockets[data.user_id].send_json({"progress": progress})
+        request.app.state.active_websockets[data.user_id].send_json({"type": "video_progress", "progress": progress})
         )
         return callback_kwargs
     
@@ -203,7 +205,7 @@ async def gen_video(data:VideoRequest,request:Request,db: Session = Depends(get_
 
         export_to_video(output, str(output_path), fps=data.fps)
 
-        get_last_frame(video_path=str(output_path),save_path=str(extract_folder),i=int(data.cut_num)+1)
+        get_last_frame(video_path=str(output_path),save_path=str(extract_folder),i=int(data.cut_num)*2+1)
     await asyncio.to_thread(run_video_blocking)
 
     return JSONResponse(content={
@@ -215,58 +217,97 @@ async def gen_video(data:VideoRequest,request:Request,db: Session = Depends(get_
 
 
 #영상 결합
-def combine_video(video_folder:Path):
+# def combine_video(video_folder:Path):
 
-    video_files = sorted(video_folder.glob("*.mp4"))
+#     video_files = sorted(video_folder.glob("*.mp4"))
 
+#     if not video_files:
+#         raise Exception("폴더에 mp4 파일이 없습니다.")
+#     print("합칠 영상 목록:")
+#     for i, f in enumerate(video_files,start=1):
+#         print(f"{i}:{f}")
+
+#     # 첫 번째 영상으로 해상도, FPS 가져오기
+#     cap = cv2.VideoCapture(str(video_files[0]))
+#     if not cap.isOpened():
+#         raise Exception(f"Can't open {video_files[0]}")
+
+#     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+#     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+#     fps = cap.get(cv2.CAP_PROP_FPS)
+#     print("fps:", fps)
+#     cap.release()
+
+#     # 출력 비디오 경로 (Path 객체 사용)
+#     out_path = video_folder / "final_video.mp4"
+#     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+#     out = cv2.VideoWriter(str(out_path), fourcc, fps, (width, height))
+
+#     # 모든 영상을 순차적으로 합치기
+#     for file in video_files:
+#         cap = cv2.VideoCapture(str(file))
+#         if not cap.isOpened():
+#             print(f"⚠️ {file} 열기 실패, 건너뜁니다.")
+#             continue
+
+#         while True:
+#             ret, frame = cap.read()
+#             if not ret:
+#                 break
+#             # 해상도가 다르면 강제로 맞추기
+#             if frame.shape[1] != width or frame.shape[0] != height:
+#                 frame = cv2.resize(frame, (width, height))
+#             out.write(frame)
+
+#         cap.release()
+
+#     out.release()
+#     print(f"✅ 영상 합치기 완료: {out_path}")
+import subprocess
+from pathlib import Path
+
+def combine_video(video_folder: Path) -> Path:
+    # final_video.mp4는 입력 목록에서 제외
+    video_files = sorted(
+        f for f in video_folder.glob("*.mp4")
+        if f.name != "final_video.mp4"
+    )
     if not video_files:
         raise Exception("폴더에 mp4 파일이 없습니다.")
+
     print("합칠 영상 목록:")
-    for i, f in enumerate(video_files,start=1):
-        print(f"{i}:{f}")
+    for i, f in enumerate(video_files, start=1):
+        print(f"{i}: {f}")
 
-    # 첫 번째 영상으로 해상도, FPS 가져오기
-    cap = cv2.VideoCapture(str(video_files[0]))
-    if not cap.isOpened():
-        raise Exception(f"Can't open {video_files[0]}")
+    # ffmpeg concat용 리스트 파일 생성
+    list_file = video_folder / "concat_list.txt"
+    with list_file.open("w", encoding="utf-8") as f:
+        for vf in video_files:
+            f.write(f"file '{vf.as_posix()}'\n")
 
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    cap.release()
-
-    # 출력 비디오 경로 (Path 객체 사용)
     out_path = video_folder / "final_video.mp4"
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(str(out_path), fourcc, fps, (width, height))
 
-    # 모든 영상을 순차적으로 합치기
-    for file in video_files:
-        cap = cv2.VideoCapture(str(file))
-        if not cap.isOpened():
-            print(f"⚠️ {file} 열기 실패, 건너뜁니다.")
-            continue
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-f", "concat",
+        "-safe", "0",
+        "-i", str(list_file),
+        "-c", "copy",           # 🔥 재인코딩 없이 그대로 이어붙이기
+        str(out_path),
+    ]
+    print("ffmpeg cmd:", " ".join(cmd))
+    subprocess.run(cmd, check=True)
 
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            # 해상도가 다르면 강제로 맞추기
-            if frame.shape[1] != width or frame.shape[0] != height:
-                frame = cv2.resize(frame, (width, height))
-            out.write(frame)
-
-        cap.release()
-
-    out.release()
-    print(f"✅ 영상 합치기 완료: {out_path}")
+    print(f"✅ ffmpeg 영상 합치기 완료: {out_path}")
+    return out_path
 
 
 @router.post("/combine")
 def combine_func(data:CombineRequest):
     video_dir=TEMP_DIR/data.user_id/str(data.project_id)/"video"
-    combine_video(video_dir)
+    out_path = combine_video(video_dir)
     return JSONResponse(content={
         "status": "success",
-        "final_video": str(video_dir/"final_video.mp4")
+        "final_video": str(out_path)
     })

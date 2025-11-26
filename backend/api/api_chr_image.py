@@ -29,7 +29,6 @@ class Chr_Gen_Image(BaseModel):
     setup:setup
     model: str
     character_prompt : str
-    image_num:str
 
 class Chr_Image_Request(BaseModel):
     user_id:str
@@ -90,8 +89,8 @@ async def chr_gen_image(data: Chr_Gen_Image,request:Request, db: Session = Depen
     existing = db.execute(
         select(models.Chr_Scenario)
         .where(
-            models.Image.user_id == data.user_id,
-            models.Image.project_id == data.project_id,
+            models.Chr_Scenario.user_id == data.user_id,
+            models.Chr_Scenario.project_id == data.project_id,
         )
         .order_by(models.Chr_Scenario.id.desc())   # 같은 쌍이 여러 행이면 가장 최근 것 선택
         .limit(1)
@@ -106,14 +105,15 @@ async def chr_gen_image(data: Chr_Gen_Image,request:Request, db: Session = Depen
             model=data.model,
         )
         db.add(db_item)
+        db.commit()
+        db.refresh(db_item)
         # db.begin() 컨텍스트가 끝날 때 자동 commit
     else:
         # 2-B) 있으면 수정
         existing.model = data.model
         existing.character_prompt=data.character_prompt
-
-    db.commit()
-    db.refresh(existing)
+        db.commit()
+        db.refresh(existing)
     print("업데이트 완료:", existing.character_prompt)    
 
 

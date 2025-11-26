@@ -67,7 +67,7 @@ async def generate_first_image(data: ImageRequest,request:Request, db: Session =
                 if ws and loop:
                     loop.call_soon_threadsafe(
                         asyncio.create_task,
-                        ws.send_json({"progress": progress})
+                        ws.send_json({"type":"img_progress","progress": progress})
                     )
             
     

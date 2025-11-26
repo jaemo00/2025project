@@ -44,13 +44,15 @@ async function initUser() {
     })
 
     const pid = Number(res.data?.project_id)
+    
     if (!pid) {
       alert('프로젝트 생성에 실패했습니다.')
       return
     }
-
+    
     store.user_id = user_id.value.trim()
     store.project_id = pid
+    store.connectWebSocket()
 
     router.push('/scenario')
   } catch (e) {

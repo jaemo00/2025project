@@ -9,30 +9,19 @@ export const useAppStore = defineStore('app', {
     scenario: '',
     keyframes: [], // 각 프롬프트 블록의 정보들
     characterImage:'',
-    socket: null    // WebSocket 객체 보관
+    socket: null,    // WebSocket 객체 보관
+    imgProgress:0,
+    videoProgress: 0
   }),
   actions: {
     loadProject(data) {
       this.project_id = data.project_id ? Number(data.project_id) : null
     },
 
-    async ensureProjectId({ title }) {
-      if (this.project_id) return this.project_id
-      if (!this.user_id) throw new Error('로그인이 필요합니다.')
 
-      // 새 프로젝트 생성
-      const res = await axios.post('/api/project', {
-        user_id: this.user_id,
-        title: title || 'Untitled'
-      })
-      const pid = Number(res.data?.project_id)
-      if (!pid) throw new Error('프로젝트 생성 실패: project_id 누락')
-      this.project_id = pid
-      return pid
-    },
     connectWebSocket() {
       if (this.socket) return  // 중복 연결 방지
-      const ws = new WebSocket(`ws://localhost:8000/ws?user_id=${this.user_id}`)
+      const ws = new WebSocket(`ws://localhost:8080/ws?user_id=${this.user_id}`)
 
       ws.onopen = () => {
         console.log('✅ WebSocket 연결됨')
@@ -40,14 +29,13 @@ export const useAppStore = defineStore('app', {
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data)
-        if (data.type === 'image_progress') {
-          const block = this.keyframes[data.blockIndex]
-          if (block) block.progress = data.progress
+        if (data.type === 'img_progress') {
+          this.imgProgress = Number(data.progress ?? 0)
         }
-
+ 
         if (data.type === 'video_progress') {
-          const block = this.keyframes[data.blockIndex]
-          if (block) block.videoProgress = data.progress
+          console.log('받은 영상 생성 진행률:', data.progress)
+          this.videoProgress = Number(data.progress ?? 0)
         }
       }
 

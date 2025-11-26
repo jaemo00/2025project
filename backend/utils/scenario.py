@@ -126,6 +126,16 @@ Using the inputs, write a **highly detailed** video plan split into **2.5-second
 
 def split_contents(contents: str):
     """
+    Split text into sentences by '.' and return them as a list.
+    """
+    # 정규식으로 마침표 기준 split (마침표는 제거됨)
+    parts = re.split(r'\.\s*', contents)
+
+    # 빈 문장 제거 & 양쪽 공백 제거
+    return [p.strip() for p in parts if p.strip()]
+
+def split_contents_bynum(contents: str):
+    """
     Extract only the text segments that follow '#N:' markers.
     """
     segments = re.findall(r'#\d+:\s*(.*?)(?=(#\d+:|$))', contents, flags=re.S)
