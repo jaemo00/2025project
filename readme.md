@@ -4,6 +4,7 @@
 
 ---
 <br>
+
 ##  프로젝트 개요
 
 이 프로젝트는 **Stable Diffusion XL**, **DALL·E 3**, **WAN2.1 VACE** 등의 생성형 AI 모델을 결합하여  
@@ -30,7 +31,8 @@ WAN2.1 VACE → 5초 단위 영상 클립 생성<br>
        ↓<br>
 클립 연결 및 영상 출력<br>
 <br><br>
-**주요 기능**
+
+## 주요 기능
 1. 시나리오 자동 생성
    
 
@@ -67,7 +69,7 @@ SQLAlchemy ORM 기반 SQLite 저장 구조
 사용자별 프로젝트 ID, 시나리오, 이미지/영상 경로 관리
 
 <br><br>
-**시연영상** : https://www.youtube.com/watch?v=t62Wdzw9qq4
+## 시연영상 : https://www.youtube.com/watch?v=t62Wdzw9qq4
 
 로그인 페이지
 ![UI](demo/login.png)
@@ -84,6 +86,7 @@ SQLAlchemy ORM 기반 SQLite 저장 구조
 비디오 생성 페이지
 ![UI](demo/video.png)
 <br>
+
 **기술스택**
 | 분류 | 기술 |
 |------|------|
