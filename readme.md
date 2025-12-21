@@ -66,7 +66,7 @@ FastAPI + WebSocket을 통해 백엔드 연산 상태를 실시간으로 전송
 
 SQLAlchemy ORM 기반 SQLite 저장 구조
 
-사용자별 프로젝트 ID, 시나리오, 이미지/영상 경로 관리
+사용자별 ID에 따라 데이터를 저장하고 불러올 수 있음.
 
 <br><br>
 ## 시연영상 : https://www.youtube.com/watch?v=t62Wdzw9qq4
@@ -85,62 +85,9 @@ SQLAlchemy ORM 기반 SQLite 저장 구조
 비디오 생성 페이지
 ![UI](demo/video.png)
 <br>
-## 생성결과물<br><br>
 
-## 주요 기능
-**1. 시나리오 자동 생성**
-   
-
-사용자의 텍스트 입력을 LLM이 분석하여 주제, 설명, 인물, 배경, 장면 내용을 자동 구성
-
-예시: "한 소년이 바닷가에서 해질녘에 걷는 장면" → 시나리오 및 장면별 내용 자동 생성
-
-**2. 키프레임 프롬프트 자동 생성**
-   
-
-LangChain 기반 템플릿을 통해 2.5초 단위 영상 비트(beat)에 대응하는 이미지 프롬프트 자동 생성
-
-영어 기반 프롬프트로 생성하여 번역 손실 최소화
-
-**3. 영상 프롬프트 자동 생성**
-
-
-시작·중간·종료 프레임을 기반으로 LangChain 템플릿(gen_video_prompt)에서 자연스러운 모션이 있는 영상용 프롬프트 생성
-
-WAN2.1 VACE에 전달되어 5초 단위 영상 클립 생성
-
-**4. 웹 기반 실시간 영상 생성**
-
-
-FastAPI + WebSocket을 통해 백엔드 연산 상태를 실시간으로 전송
-
-프론트(Vue.js)에서 영상 생성 진행률(%) 및 결과 이미지 확인 가능
-
-**5. 프로젝트 및 데이터 저장**
-   
-
-SQLAlchemy ORM 기반 SQLite 저장 구조
-
-사용자별 프로젝트 ID, 시나리오, 이미지/영상 경로 관리
-
-<br><br>
-## 시연영상 : https://www.youtube.com/watch?v=t62Wdzw9qq4
-
-로그인 페이지
-![UI](demo/login.png)
-
-시나리오 생성 페이지 1
-![UI](demo/scenario1.png)
-시나리오 생성 페이지 2
-![UI](demo/scenario2.png)
-
-키프레임 생성 페이지
-![UI](demo/keyframe.png)
-
-비디오 생성 페이지
-![UI](demo/video.png)
-<br>
 ## 생성결과물 : [https://www.youtube.com/watch?v=t62Wdzw9qq4](https://www.youtube.com/@AIVIDEO-l6j/shorts)
+<br>
 
 **기술스택**
 | 분류 | 기술 |
