@@ -7,13 +7,13 @@
 
 ##  프로젝트 개요
 
-이 프로젝트는 **Stable Diffusion XL**, **DALL·E 3**, **WAN2.1 VACE** 등의 생성형 AI 모델을 결합하여  
+이 프로젝트는 **DALL·E 3** 및 **Stable Diffusion XL**, , **WAN2.1 VACE** 과 같은 오픈소스 생성형 AI 모델을 결합하여  
 **텍스트 입력만으로 영상 제작이 가능한 자동화 시스템**을 구현한 웹 플랫폼입니다.  
 사용자가 간단한 문장을 입력하면 ChatGPT 기반 LLM이 시나리오를 생성하고,  
 LangChain 템플릿을 통해 **키프레임 및 영상용 프롬프트를 자동 생성**한 후  
 이미지·영상 생성 모델을 호출하여 동영상을 생성합니다.  
 
->  목표: 비전문가도 AI 모델을 직접 다루지 않고, 텍스트만으로 자연스러운 영상 콘텐츠를 생성할 수 있는 자동화 플랫폼을 만드는 것
+>  목표: 비전문가도 AI 모델을 직접 다루지 않고, 텍스트만으로 자연스러운 영상 콘텐츠를 생성할 수 있는 자동화 플랫폼을 Hugging Face의 오픈소스 모델을 활용하여 비용 효율적으로 구현.
 
 ---
 <br><br>
@@ -95,7 +95,7 @@ SQLAlchemy ORM 기반 SQLite 저장 구조
 |Infra / Dev|Python 3.10+, Node.js 18+, Git|
 | 프론트엔드 | Vue.js, HTML, CSS, JavaScript |
 | 백엔드 | FastAPI, WebSocket |
-| AI Models | diffusers, WAN2.1 VACE, DALL·E 3 |
+| AI Models | diffusers, WAN2.1 VACE 1.3B, DALL·E 3 |
 | DB | SQLAlchemy (SQLite) |
 
 
