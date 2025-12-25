@@ -52,18 +52,21 @@ app.state.EMIT_LOOP=None
 app.state.gpu_sem = anyio.Semaphore(1)  # 동시 생성 제한
 app.state.active_websockets = {}
 
+
 def load_pipe():
     pipe = DiffusionPipeline.from_pretrained(
         "stabilityai/stable-diffusion-xl-base-1.0",
-        torch_dtype=torch.float16,
+        torch_dtype=torch.float16, # FP16 양자화로 메모리 절반 절감
         use_safetensors=True,
     )
+    # VAE 메모리 부족 방지 (조각내어 연산)
     pipe.vae.enable_tiling()
     pipe.vae.enable_slicing()
     pipe.to("cuda")
 
     return pipe
 
+# 1. VRAM 최적화 및 모델 로딩 (SDXL / Wan2.1)
 def load_video_pipe():
     model_id = "Wan-AI/Wan2.1-VACE-1.3B-diffusers"
     vae = AutoencoderKLWan.from_pretrained(model_id, subfolder="vae", torch_dtype=torch.float32)
@@ -91,7 +94,7 @@ async def init_once():
     if app.state.EMIT_LOOP is None:
         app.state.EMIT_LOOP = asyncio.get_running_loop()
 
-    app.state.model_lock = asyncio.Lock()
+    app.state.model_lock = asyncio.Lock()   # 모델 교체 보호용 (Mutex)
     app.state.pipe = None
     app.state.video_pipe = None
 
@@ -150,18 +153,18 @@ async def websocket_endpoint(websocket: WebSocket):
     
     # 사용자별 WebSocket 연결 저장
     app.state.active_websockets[user_id] = websocket
-    print(f"✅ WebSocket 연결됨: {user_id}")
+    print(f" WebSocket 연결됨: {user_id}")
     
     try:
         while True:
             # 연결 유지를 위해 메시지 대기
             data = await websocket.receive_text()
-            print(f"📨 받은 메시지: {data}")
+            print(f" 받은 메시지: {data}")
     except WebSocketDisconnect:
         # 연결 해제 시 제거
         if user_id in app.state.active_websockets:
             del app.state.active_websockets[user_id]
-        print(f"❌ WebSocket 연결 해제: {user_id}")
+        print(f" WebSocket 연결 해제: {user_id}")
 
 #frontend 폴더 mount
 app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")

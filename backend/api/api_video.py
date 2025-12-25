@@ -206,7 +206,9 @@ async def gen_video(data:VideoRequest,request:Request,db: Session = Depends(get_
         export_to_video(output, str(output_path), fps=data.fps)
 
         get_last_frame(video_path=str(output_path),save_path=str(extract_folder),i=int(data.cut_num)*2+1)
-    await asyncio.to_thread(run_video_blocking)
+    # GPU 추론을 별도 스레드로 분리 (서버 멈춤 방지)
+    async with request.app.state.gpu_sem:
+        await asyncio.to_thread(run_video_blocking)
 
     return JSONResponse(content={
         "status": "success",
